@@ -5,7 +5,7 @@ export interface Section {
   /** Heading path such as `Testing > Unit tests`; `(top)` for text before the first heading. */
   key: string;
   /** Lines of the section body (heading line excluded). */
-  lines: { text: string; line: number }[];
+  lines: { text: string; line: number; fenced?: boolean }[];
   headingLine: number;
 }
 
@@ -69,7 +69,7 @@ export function parseMarkdown(text: string): Parsed {
       current = { key, lines: [], headingLine: i + 1 };
       sections.push(current);
     } else {
-      current.lines.push({ text: raw, line: i + 1 });
+      current.lines.push({ text: raw, line: i + 1, fenced: fence !== null || f !== null });
     }
   }
   return { frontmatter: fm, sections };
@@ -84,7 +84,7 @@ export interface LineDiff {
   removed: { text: string; line: number }[];
 }
 
-type L = { text: string; line: number };
+type L = { text: string; line: number; fenced?: boolean };
 const norm = (s: string): string => s.trim().replace(/\s+/g, ' ');
 
 /** LCS-based line diff ignoring whitespace-only differences; falls back to multiset diff for huge inputs. */
@@ -142,35 +142,93 @@ export function diffLines(before: L[], after: L[]): LineDiff {
 // content heuristics
 // ---------------------------------------------------------------------------------------------
 
-const NEGATIVE_DIRECTIVE = /\b(never|must not|mustn't|do not|don't|dont|forbidden|prohibited|not allowed|avoid)\b/i;
+// A prohibition is imperative: SHOUTED (NEVER, DO NOT), or "never/do not/avoid ..." opening the line, a bullet,
+// a sentence or a clause. Descriptive prose such as "runs that don't time out" is not a guardrail.
+const SHOUTED_NEGATIVE = /\b(NEVER|MUST NOT|DO NOT|DON'T|DONT|FORBIDDEN|PROHIBITED|AVOID)\b/;
+const CLAUSE_NEGATIVE = /(?:^|[.!?:;]\s+|\s[\u2014\u2013-]\s+|,\s+(?:and\s+|but\s+)?)(?:please\s+|you\s+(?:should|must|shall)\s+)?(never|must not|mustn't|do not|don't|dont|avoid|should not|shouldn't|forbidden|prohibited|not allowed)\b/i;
+const MODAL_NEGATIVE = /\b(?:you|agents?|claude|assistant|ai|we|it)\s+(?:must|should|shall|will)\s+(?:never|not)\b|\b(?:must|should)\s+never\b/i;
 const DIRECTIVE = /\b(never|must not|do not|don't|forbidden|prohibited|must|always|required|only)\b/i;
 
-export function isNegativeDirective(line: string): boolean {
-  return NEGATIVE_DIRECTIVE.test(line);
+function stripLead(line: string): string {
+  // drop list markers, numbering, blockquote and emphasis markers so "- **Never** do x" starts with "Never"
+  return line.trim().replace(/^(?:[>*+-]\s+|\d+[.)]\s+)+/, '').replace(/^[*_`"'(\[]+/, '').replace(/[*_]+/g, '');
 }
+
+export function isNegativeDirective(line: string): boolean {
+  if (SHOUTED_NEGATIVE.test(line)) return true;
+  const plain = stripLead(line);
+  return CLAUSE_NEGATIVE.test(plain) || MODAL_NEGATIVE.test(plain);
+}
+/** A snippet of a removed prohibition, centred on the prohibition instead of the start of a long line. */
+export function prohibitionSnippet(line: string, max = 100): string {
+  const plain = line.trim();
+  if (plain.length <= max) return snippet(plain, max);
+  const m = /\b(NEVER|MUST NOT|DO NOT|DON'T|AVOID|never|must not|mustn't|do not|don't|dont|avoid|should not|shouldn't|forbidden|prohibited|not allowed)\b/i.exec(plain);
+  const at = m ? Math.max(0, m.index - 30) : 0;
+  const cut = plain.slice(at, at + max);
+  return `${at > 0 ? '…' : ''}${snippet(cut, max)}`;
+}
+
 export function isDirective(line: string): boolean {
   return DIRECTIVE.test(line);
 }
 
 interface Risk {
   rule: string;
-  severity: Severity;
+  severity: Severity | ((line: string) => Severity);
   re: RegExp;
   what: string;
+  /** Skip lines that forbid the matched behaviour ("never use --no-verify", "No `eval()`"). */
+  skipProhibitions?: boolean;
 }
+
+// text before the match that turns "do X" into "do not do X"
+const PROHIBITION_BEFORE = /\b(never|do not|don't|dont|must not|mustn't|should not|shouldn't|avoid|forbidden|prohibited|not allowed)\b|(?<![\w-])no(?![\w-])/i;
+const UNION_TYPE = /["'`]\s*\|\s*["'`]/;
+
+const pipeToShellSeverity = (line: string): Severity =>
+  /\bhttp:\/\/|\|\s*sudo\b|\bsudo\b[^\n|]*\|\s*(ba|z|da)?sh\b|\|\s*(ba|z|da)?sh\b[^\n]*\b(sudo)\b|https?:\/\/\d{1,3}(\.\d{1,3}){3}/i.test(line) ? 'high' : 'medium';
 
 const RISKS: Risk[] = [
   { rule: 'ctx-injection-phrase', severity: 'high', what: 'contains a prompt-injection style phrase', re: /\b(ignore|disregard|forget)\b[^.\n]{0,30}\b(previous|prior|above|earlier|all)\b[^.\n]{0,30}\b(instructions?|rules?|prompts?|guidelines?)\b/i },
-  { rule: 'ctx-injection-phrase', severity: 'high', what: 'tells the agent to hide things from the user', re: /\b(do not|don't|never|without)\b[^.\n]{0,25}\b(tell|inform|notify|mention|show|reveal|alert)\b[^.\n]{0,25}\b(the )?(user|human|developer|reviewer)\b/i },
-  { rule: 'ctx-injection-phrase', severity: 'medium', what: 'contains secrecy wording', re: /\b(secretly|silently|covertly|quietly)\b/i },
-  { rule: 'ctx-dangerous-command', severity: 'high', what: 'pipes a download into a shell', re: /\b(curl|wget|iwr|Invoke-WebRequest)\b[^\n|]*\|\s*(sudo\s+)?(ba|z|da)?sh\b/i },
-  { rule: 'ctx-dangerous-command', severity: 'high', what: 'disables agent permission checks', re: /--dangerously-skip-permissions|--yolo\b|--dangerously-bypass-approvals-and-sandbox|bypassPermissions/i },
-  { rule: 'ctx-dangerous-command', severity: 'high', what: 'contains a destructive delete', re: /\brm\s+-[a-z]*r[a-z]*f?[a-z]*\s+(\/|~|\$HOME)(\s|$|\*)/i },
-  { rule: 'ctx-dangerous-command', severity: 'medium', what: 'bypasses git hooks or force-pushes', re: /--no-verify\b|git\s+push\s+(--force|-f)\b|--force-with-lease/i },
-  { rule: 'ctx-dangerous-command', severity: 'medium', what: 'changes permissions broadly or escalates privileges', re: /\bchmod\s+(-R\s+)?7[0-7][0-7]\b|\bsudo\s+\S+/i },
-  { rule: 'ctx-dangerous-command', severity: 'medium', what: 'executes decoded or evaluated content', re: /base64\s+(-d|--decode)[^\n]*\|\s*(ba)?sh|\beval\s*[(`$"']/i },
-  { rule: 'ctx-exfiltration', severity: 'medium', what: 'asks to send data to an external endpoint', re: /\b(send|upload|post|exfiltrate|forward|transmit)\b[^.\n]{0,60}\b(to|at)\b[^.\n]{0,20}https?:\/\//i },
+  // "do not tell the user to run X" gives an instruction; "do not tell the user about X" hides something
+  { rule: 'ctx-injection-phrase', severity: 'high', what: 'tells the agent to hide things from the user', re: /\b(do not|don't|never|without)\b[^.\n]{0,25}\b(tell(?:ing)?|inform(?:ing)?|notify(?:ing)?|mention(?:ing)?|show(?:ing)?|reveal(?:ing)?|alert(?:ing)?|disclos(?:e|ing))\b[^.\n]{0,25}\b(the |this )?(user|human|developer|reviewer)s?\b(?!\s+(to|how to)\b)/i },
+  // "silently" alone is ordinary engineering prose ("fails silently"); flag it only when an action follows
+  { rule: 'ctx-injection-phrase', severity: 'medium', what: 'asks the agent to act covertly', re: /\b(secretly|covertly|stealthily|surreptitiously)\b|\b(silently|quietly)\s+(run|execute|send|upload|post|push|commit|install|download|modify|change|delete|remove|disable|bypass|skip|ignore|exfiltrate|forward|copy)\b/i, skipProhibitions: true },
+  { rule: 'ctx-dangerous-command', severity: pipeToShellSeverity, what: 'pipes a download into a shell', re: /\b(curl|wget|iwr|Invoke-WebRequest)\b[^\n|]*\|\s*(sudo\s+)?(ba|z|da)?sh\b/i, skipProhibitions: true },
+  { rule: 'ctx-dangerous-command', severity: 'high', what: 'disables agent permission checks', re: /--dangerously-skip-permissions|--yolo\b|--dangerously-bypass-approvals-and-sandbox|(?:defaultMode|permission[-_ ]?mode)["']?\s*[:=]?\s*["']?bypassPermissions/i, skipProhibitions: true },
+  { rule: 'ctx-dangerous-command', severity: 'high', what: 'contains a destructive delete', re: /\brm\s+-[a-z]*r[a-z]*f?[a-z]*\s+(\/|~|\$HOME)(\s|$|\*)/i, skipProhibitions: true },
+  // --force-with-lease is the safe variant of force-pushing
+  { rule: 'ctx-dangerous-command', severity: 'medium', what: 'bypasses git hooks or force-pushes', re: /--no-verify\b|\bgit\s+push\b[^\n|;&]*\s(?:--force(?![-\w])|-f)(?=\s|$|`)/i, skipProhibitions: true },
+  { rule: 'ctx-dangerous-command', severity: 'medium', what: 'changes permissions broadly or escalates privileges', re: /\bchmod\s+(-R\s+)?7[0-7][0-7]\b|(?<![\w-])sudo\s+\S+/i, skipProhibitions: true },
+  { rule: 'ctx-dangerous-command', severity: 'medium', what: 'executes decoded or evaluated content', re: /base64\s+(-d|--decode)[^\n]*\|\s*(ba)?sh|(?<![\w.-])eval(?:\s*\(|\s+["'`$])/i, skipProhibitions: true },
+  { rule: 'ctx-exfiltration', severity: 'medium', what: 'asks to send data to an external endpoint', re: /\b(send|upload|post|exfiltrate|forward|transmit)\b[^.\n]{0,60}\b(to|at)\b[^.\n]{0,20}https?:\/\//i, skipProhibitions: true },
 ];
+
+function riskApplies(r: Risk, line: string): boolean {
+  const m = r.re.exec(line);
+  if (!m) return false;
+  if (r.skipProhibitions) {
+    if (PROHIBITION_BEFORE.test(line.slice(0, m.index))) return false;
+    if (UNION_TYPE.test(line)) return false;
+  }
+  return true;
+}
+
+/** `<!-- prettier-ignore-start -->`, `<!-- BEGIN:section -->`, `<!-- markdownlint-disable MD033 -->`, `<!-- toc -->` ... */
+export function isMarkerComment(line: string): boolean {
+  const comments = line.match(/<!--[\s\S]*?-->/g);
+  if (!comments || line.replace(/<!--[\s\S]*?-->/g, '').includes('<!--')) return false;
+  return comments.every((c) => {
+    const body = c.slice(4, -3).trim();
+    if (body === '' || body.length > 80) return body === '';
+    return (
+      /^\/?[A-Z][A-Z0-9_.:-]*(?:[ :][A-Z0-9_.:-]+)?$/.test(body) || // OPENWIKI:START, END GENERATED
+      /^(?:BEGIN|END|START|STOP)[:\s-]+\S+(?: \S+)?$|^\S+:(?:START|END|BEGIN|STOP)$/i.test(body) || // BEGIN:nextjs-agent-rules
+      /^(?:prettier-ignore(?:-start|-end)?|markdownlint-\S+(?: \S+)*|cspell:\S+(?: \S+)*|vale\s\S+(?: \S+)*|eslint-\S+(?: \S+)*|toc|tocstop|\/toc|doctoc.*|more|truncate|lint-\S+)$/i.test(body)
+    );
+  });
+}
 
 const ZERO_WIDTH_AND_BIDI = /[\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF\u00AD\u180E]/;
 const TAG_CHARS = /[\u{E0000}-\u{E007F}]/u;
@@ -211,7 +269,8 @@ export function scanAddedLines(lines: L[], opts: ScanOptions): Finding[] {
         message: `added line contains invisible Unicode characters (${hidden.join(', ')}); these can hide instructions from reviewers`,
       });
     }
-    if (/<!--/.test(l.text)) {
+    // Inside a code fence a comment is visible when rendered; bare tool markers (<!-- BEGIN:x -->) carry no prose.
+    if (/<!--/.test(l.text) && !l.fenced && !isMarkerComment(l.text)) {
       add({
         rule: 'ctx-html-comment',
         severity: 'medium',
@@ -220,8 +279,8 @@ export function scanAddedLines(lines: L[], opts: ScanOptions): Finding[] {
       });
     }
     for (const r of RISKS) {
-      if (r.re.test(l.text)) {
-        add({ rule: r.rule, severity: r.severity, line: l.line, message: `added line ${r.what}: ${snippet(l.text)}` });
+      if (riskApplies(r, l.text)) {
+        add({ rule: r.rule, severity: typeof r.severity === 'function' ? r.severity(l.text) : r.severity, line: l.line, message: `added line ${r.what}: ${snippet(l.text)}` });
       }
     }
     if (matchesTokenPattern(l.text)) {

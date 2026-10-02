@@ -1,5 +1,5 @@
 import { classify } from './discover.js';
-import { diffInstructionFile } from './instructions.js';
+import { diffInstructionFile, lineSet, type DiffContext } from './instructions.js';
 import { diffClaudeSettings } from './claude.js';
 import { parseJsonc } from './jsonc.js';
 import { diffServers, extractServers } from './mcp.js';
@@ -11,13 +11,38 @@ function parseConfig(text: string | null): { ok: true; value: unknown } | { ok: 
 }
 
 /** Compare every tracked agent file between two snapshots. */
-export function diffSnapshots(base: Snapshot, head: Snapshot): DiffResult {
+function memoize(snap: Snapshot): Snapshot {
+  const cache = new Map<string, string | null>();
+  return {
+    label: snap.label,
+    listFiles: () => snap.listFiles(),
+    read: (p) => {
+      if (!cache.has(p)) cache.set(p, snap.read(p));
+      return cache.get(p) ?? null;
+    },
+  };
+}
+
+export function diffSnapshots(rawBase: Snapshot, rawHead: Snapshot): DiffResult {
+  const base = memoize(rawBase);
+  const head = memoize(rawHead);
   const paths = new Set<string>();
   for (const p of base.listFiles()) if (classify(p)) paths.add(p);
   for (const p of head.listFiles()) if (classify(p)) paths.add(p);
 
   const files: FileChange[] = [];
   const findings: Finding[] = [];
+
+  // Text that exists in any instruction file on one side is "known" there: moving a rule between files
+  // (CLAUDE.md -> AGENTS.md, .cursorrules -> .cursor/rules/x.mdc) must not look like a deletion plus a new file.
+  const instructionTexts = (snap: Snapshot): string[] =>
+    snap
+      .listFiles()
+      .filter((p) => classify(p) === 'instructions')
+      .map((p) => snap.read(p))
+      .filter((t): t is string => t !== null);
+  let ctx: DiffContext | undefined;
+  const instructionContext = (): DiffContext => (ctx ??= { baseLines: lineSet(instructionTexts(base)), headLines: lineSet(instructionTexts(head)) });
 
   for (const file of [...paths].sort()) {
     const kind = classify(file);
@@ -29,7 +54,7 @@ export function diffSnapshots(base: Snapshot, head: Snapshot): DiffResult {
     files.push({ file, kind, status: before === null ? 'added' : after === null ? 'removed' : 'modified' });
 
     if (kind === 'instructions') {
-      findings.push(...diffInstructionFile(file, before, after));
+      findings.push(...diffInstructionFile(file, before, after, instructionContext()));
       continue;
     }
     const pa = parseConfig(before);

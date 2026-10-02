@@ -46,6 +46,30 @@ export function resolveCommit(root: string, ref: string): string {
   }
 }
 
+/** The well-known id of the empty tree; every git version resolves it without the object existing. */
+const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+
+/**
+ * Like {@link resolveCommit}, but `<root commit>^` (or `~1`) means "before the first commit" instead of an error,
+ * so a repository's very first commit can be reviewed, and a one-commit checkout does not break `HEAD~1`.
+ */
+function resolveBase(root: string, ref: string): string {
+  try {
+    return resolveCommit(root, ref);
+  } catch (err) {
+    const m = /^(.+?)(?:\^|~1)$/.exec(ref);
+    if (m) {
+      try {
+        const parents = git(root, ['rev-list', '--parents', '-n', '1', m[1] as string]).trim().split(/\s+/);
+        if (parents.length === 1) return EMPTY_TREE;
+      } catch {
+        /* fall through to the original error */
+      }
+    }
+    throw err;
+  }
+}
+
 class RefSnapshot implements Snapshot {
   private files: string[] | undefined;
   constructor(
@@ -144,13 +168,13 @@ export function resolveRange(input: RangeInput): Range {
   }
   baseRef = baseRef ?? 'HEAD';
 
-  const baseSha = resolveCommit(root, baseRef);
-  let baseLabel = baseRef;
+  const baseSha = resolveBase(root, baseRef);
+  let baseLabel = baseSha === EMPTY_TREE ? `${baseRef} (empty tree)` : baseRef;
   let effectiveBase = baseSha;
   const headIsWorktree = headRef === undefined || WORKTREE_NAMES.has(headRef);
   const headSha = headIsWorktree ? undefined : resolveCommit(root, headRef as string);
 
-  if (threeDot) {
+  if (threeDot && baseSha !== EMPTY_TREE) {
     const target = headSha ?? resolveCommit(root, 'HEAD');
     try {
       effectiveBase = git(root, ['merge-base', baseSha, target]).trim();

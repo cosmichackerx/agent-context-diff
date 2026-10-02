@@ -7,12 +7,15 @@ function strList(v: unknown): string[] {
 }
 
 const DANGEROUS_BASH = /^Bash\((?:(?:curl|wget|rm|sudo|ssh|scp|nc|ncat|sh|bash|zsh|eval|python3?|node|npx|pip3?|docker|kubectl|chmod|chown)\b|npm\s+(?:install|publish|exec)|git\s+push)/;
-const READONLY = /^(Read|Glob|Grep|LS|NotebookRead)(\(|$)|^Bash\((?:git\s+(?:status|diff|log|show|branch)|ls|pwd|cat|echo|head|tail|wc)\b/;
+const READONLY = /^(Read|Glob|Grep|LS|NotebookRead|WebSearch|TodoWrite|Task)(\(|$)|^WebFetch\(domain:[^)]+\)$|^Bash\((?:git\s+(?:status|diff|log|show|branch|ls-files|rev-parse|blame)|gh\s+(?:pr|issue|run|repo)\s+(?:view|list|diff|checks|status)|gh\s+(?:pr|issue)\s+status|ls|pwd|cat|echo|head|tail|wc|grep|rg|find|which|tree|file|stat|du|sort|uniq|diff|mkdir|touch)\b/;
+// build, test and lint runners: they execute repository code, which a contributor can already do in CI
+const DEV_LOOP = /^Bash\((?:npm\s+(?:test|run\s+(?:test|lint|format|build|check|type-?check|typecheck)[\w:-]*)|pnpm\s+(?:test|lint|format|build|typecheck|run\s+(?:test|lint|format|build|typecheck)[\w:-]*)|yarn\s+(?:test|lint|format|build|typecheck)|(?:npx|pnpm exec|bunx)\s+(?:tsc|eslint|prettier|vitest|jest|biome)|cargo\s+(?:check|test|clippy|fmt|build)|go\s+(?:test|vet|build|fmt)|pytest|ruff|mypy|tsc)\b/;
 
 export function allowSeverity(entry: string): Severity {
   const e = entry.trim();
   if (e === '*' || /^(Bash|Write|Edit|MultiEdit|WebFetch)$/.test(e)) return 'high';
   if (/^Bash\((\*|:\*|\*:\*)?\)$/.test(e)) return 'high';
+  if (DEV_LOOP.test(e)) return 'low';
   if (DANGEROUS_BASH.test(e)) return 'high';
   if (/^mcp__[^_]+(__\*)?$/.test(e)) return 'medium';
   if (READONLY.test(e)) return 'low';
@@ -42,6 +45,12 @@ function hooksOf(settings: Record<string, unknown>): Hook[] {
     }
   }
   return out;
+}
+
+/** A hook is always code execution; it is `high` when it also touches the network, decodes or evaluates content. */
+export function hookSeverity(command: string): Severity {
+  const risky = /\b(curl|wget|nc|ncat|ssh|scp|base64|eval|powershell|pwsh|iwr|Invoke-WebRequest)\b|https?:\/\/|\|\s*(ba|z)?sh\b|\b(ba|z)?sh\s+-c\b|\$\(|`|\bsudo\b|~\/|\/etc\//i;
+  return risky.test(command) ? 'high' : 'medium';
 }
 
 function clip(s: string, n = 140): string {
@@ -93,7 +102,7 @@ export function diffClaudeSettings(file: string, before: unknown, after: unknown
   // hooks execute arbitrary shell commands on agent events
   const hooksA = new Map(hooksOf(a).map((h) => [h.key, h]));
   const hooksB = new Map(hooksOf(b).map((h) => [h.key, h]));
-  for (const [k, h] of hooksB) if (!hooksA.has(k)) f('hook-added', 'high', `hook added (runs a command on agent events): ${clip(h.command)}`, 'hooks');
+  for (const [k, h] of hooksB) if (!hooksA.has(k)) f('hook-added', hookSeverity(h.command), `hook added (runs a command on agent events): ${clip(h.command)}`, 'hooks');
   for (const [k, h] of hooksA) if (!hooksB.has(k)) f('hook-removed', 'low', `hook removed: ${clip(h.command)}`, 'hooks', 'base');
 
   // MCP gates

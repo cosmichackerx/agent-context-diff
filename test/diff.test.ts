@@ -98,15 +98,20 @@ test('instructions: sensitive frontmatter changes are medium', () => {
   assert.equal(desc?.severity, 'info');
 });
 
-test('instructions: removed section with prohibitions is medium; plain section low', () => {
+test('instructions: prohibitions in a removed section are listed as guardrail findings; the section itself is low', () => {
   const r = diff(
     { 'AGENTS.md': '# A\n## Safety\n- Do not run rm -rf.\n## Style\nUse tabs.\n' },
     { 'AGENTS.md': '# A\n' },
   );
   const safety = r.findings.find((f) => f.rule === 'ctx-section-removed' && f.message.includes('Safety'));
   const style = r.findings.find((f) => f.rule === 'ctx-section-removed' && f.message.includes('Style'));
-  assert.equal(safety?.severity, 'medium');
+  assert.equal(safety?.severity, 'low');
+  assert.match(safety?.message ?? '', /1 prohibition line\(s\) listed separately/);
   assert.equal(style?.severity, 'low');
+  const g = r.findings.filter((f) => f.rule === 'ctx-guardrail-removed');
+  assert.equal(g.length, 1);
+  assert.equal(g[0]?.severity, 'medium');
+  assert.equal(g[0]?.line, 3);
 });
 
 test('mcp: added server is high; package pin, env and secrets are analysed without leaking values', () => {
@@ -213,7 +218,7 @@ test('claude settings: permissions, defaultMode, hooks, env, mcp gates', () => {
   const r = diff({ '.claude/settings.json': JSON.stringify(before) }, { '.claude/settings.json': JSON.stringify(after) });
   const sev = (rule: string, contains = ''): string | undefined => r.findings.find((f) => f.rule === rule && f.message.includes(contains))?.severity;
   assert.equal(sev('perm-allow-added', 'Bash(*)'), 'high');
-  assert.equal(sev('perm-allow-added', 'npm run test'), 'medium');
+  assert.equal(sev('perm-allow-added', 'npm run test'), 'low');
   assert.equal(sev('perm-allow-added', 'git status'), 'low');
   assert.equal(sev('perm-deny-removed'), 'high');
   assert.equal(sev('perm-ask-removed'), 'medium');
