@@ -1,14 +1,27 @@
 import { classify } from './discover.js';
 import { diffInstructionFile, lineSet, type DiffContext } from './instructions.js';
 import { diffClaudeSettings } from './claude.js';
+import { diffCodexConfig } from './codex.js';
 import { parseJsonc } from './jsonc.js';
+import { parseToml } from './toml.js';
+import { parseYaml } from './yamlmini.js';
 import { diffServers, extractServers } from './mcp.js';
 import { ALLOWLIST_FILE, allowlistChangeFindings, applyAllowlist, loadFromBase, parseAllowlist } from './allowlist.js';
 import { SEVERITY_RANK, type DiffResult, type FileChange, type Finding, type Snapshot } from './types.js';
 
-function parseConfig(text: string | null): { ok: true; value: unknown } | { ok: false; error: string } {
+function formatOf(file: string): 'TOML' | 'YAML' | 'JSON/JSONC' {
+  return /\.toml$/i.test(file) ? 'TOML' : /\.ya?ml$/i.test(file) ? 'YAML' : 'JSON/JSONC';
+}
+
+function parseConfig(file: string, text: string | null): { ok: true; value: unknown } | { ok: false; error: string } {
   if (text === null) return { ok: true, value: {} };
-  return parseJsonc(text);
+  const format = formatOf(file);
+  if (format === 'JSON/JSONC') return parseJsonc(text);
+  try {
+    return { ok: true, value: format === 'TOML' ? parseToml(text) : parseYaml(text) };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
 }
 
 /** Compare every tracked agent file between two snapshots. */
@@ -107,15 +120,15 @@ export function diffSnapshots(rawBase: Snapshot, rawHead: Snapshot, options: Dif
       findings.push(...diffInstructionFile(file, before, after, instructionContext()));
       continue;
     }
-    const pa = parseConfig(before);
-    const pb = parseConfig(after);
+    const pa = parseConfig(file, before);
+    const pb = parseConfig(file, after);
     if (!pb.ok) {
       findings.push({
         rule: 'config-unparsable',
         severity: 'medium',
         category: 'config',
         file,
-        message: `file is not valid JSON/JSONC (${pb.error}); changes could not be analysed`,
+        message: `file is not valid ${formatOf(file)} (${pb.error}); changes could not be analysed`,
         side: 'head',
       });
       continue;
@@ -127,12 +140,13 @@ export function diffSnapshots(rawBase: Snapshot, rawHead: Snapshot, options: Dif
         severity: 'info',
         category: 'config',
         file,
-        message: `previous version was not valid JSON/JSONC (${pa.error}); treating it as empty`,
+        message: `previous version was not valid ${formatOf(file)} (${pa.error}); treating it as empty`,
         side: 'base',
       });
     }
     findings.push(...diffServers(file, extractServers(beforeValue), extractServers(pb.value)));
     if (kind === 'claude-settings') findings.push(...diffClaudeSettings(file, beforeValue, pb.value));
+    if (kind === 'codex-config') findings.push(...diffCodexConfig(file, beforeValue, pb.value));
   }
 
   if (options.checkDivergence) findings.push(...divergence(base, head, new Set(files.map((x) => x.file))));

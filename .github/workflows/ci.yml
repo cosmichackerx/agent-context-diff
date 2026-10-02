@@ -140,3 +140,33 @@ jobs:
       - name: The gate must have failed
         if: steps.gate.outcome != 'failure'
         run: echo "expected fail-on=high to fail the step" >&2 && exit 1
+
+  comment-selftest:
+    name: sticky comment (same-repo pull requests)
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: First run creates the comment
+        uses: ./
+        with:
+          comment: "true"
+          summary: "false"
+      - name: Second run updates the same comment
+        uses: ./
+        with:
+          comment: "true"
+          summary: "false"
+      - name: Exactly one sticky comment exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          n="$(gh api "repos/$GITHUB_REPOSITORY/issues/${{ github.event.pull_request.number }}/comments" --paginate --jq '[.[] | select(.body | startswith("<!-- agent-context-diff:sticky -->"))] | length' | awk '{s+=$1} END{print s+0}')"
+          echo "sticky comments: $n"
+          test "$n" = "1"

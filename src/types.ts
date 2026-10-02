@@ -26,7 +26,7 @@ export interface FileChange {
   kind: FileKind;
 }
 
-export type FileKind = 'instructions' | 'mcp-config' | 'claude-settings' | 'allowlist';
+export type FileKind = 'instructions' | 'mcp-config' | 'claude-settings' | 'codex-config' | 'allowlist';
 
 /** A read-only view of the files of a git ref (or of the working tree). */
 export interface Snapshot {

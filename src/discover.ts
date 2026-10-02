@@ -61,7 +61,11 @@ const MCP_CONFIG_PATHS: RegExp[] = [
   /^opencode\.jsonc?$/,
   /^\.opencode\/opencode\.jsonc?$/,
   /^\.agents\/agents\.json$/,
+  /^\.continue\/mcpServers\/.+\.ya?ml$/, // Continue: one YAML file per server (https://docs.continue.dev/customize/deep-dives/mcp)
+  /^\.continue\/(config|mcpServers|agents\/.+)\.ya?ml$/, // Continue config with an `mcpServers:` list
 ];
+
+const CODEX_CONFIG = /^\.codex\/config\.toml$/; // Codex project config: [mcp_servers.*], approval_policy, sandbox_mode
 
 const CLAUDE_SETTINGS = /^\.claude\/settings(\.local)?\.json$/;
 
@@ -71,6 +75,7 @@ export function classify(path: string): FileKind | null {
   if (parts.includes('node_modules') || parts.includes('.git')) return null;
   const base = parts[parts.length - 1] as string;
   if (CLAUDE_SETTINGS.test(path)) return 'claude-settings';
+  if (CODEX_CONFIG.test(path)) return 'codex-config';
   if (MCP_CONFIG_PATHS.some((re) => re.test(path))) return 'mcp-config';
   if (INSTRUCTION_BASENAMES.has(base)) return 'instructions';
   if (INSTRUCTION_PATHS.some((re) => re.test(path))) return 'instructions';
