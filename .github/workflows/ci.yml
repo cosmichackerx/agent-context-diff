@@ -114,6 +114,20 @@ jobs:
             if (!read('divergence.json').includes('ctx-files-diverge')) { console.error('missing ctx-files-diverge'); process.exit(1); }
             if (read('report.json').includes('ctx-files-diverge')) { console.error('ctx-files-diverge must be opt-in'); process.exit(1); }
           "
+      - name: SARIF output for code scanning
+        uses: ./
+        with:
+          working-directory: ${{ runner.temp }}/fx
+          base: HEAD~1
+          head: HEAD
+          format: sarif
+          output-file: ${{ runner.temp }}/report.sarif
+      - name: SARIF report is well formed
+        run: |
+          node -e "
+            const r = JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP + '/report.sarif', 'utf8'));
+            if (r.version !== '2.1.0' || !r.runs[0].results.some((x) => x.ruleId === 'mcp-server-added')) { console.error('bad sarif'); process.exit(1); }
+          "
       - name: Action fails with fail-on=high
         id: gate
         uses: ./

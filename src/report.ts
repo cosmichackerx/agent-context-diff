@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { RULES } from './rules.js';
 import { SEVERITIES, SEVERITY_RANK, type DiffResult, type Finding, type Severity } from './types.js';
 
 const COLORS: Record<Severity, string> = { high: '\x1b[31m', medium: '\x1b[33m', low: '\x1b[36m', info: '\x1b[2m' };
@@ -111,4 +113,69 @@ export function parseSeverity(s: string): Severity | undefined {
 
 export function meetsThreshold(findings: Finding[], threshold: Severity): boolean {
   return findings.some((f) => SEVERITY_RANK[f.severity] >= SEVERITY_RANK[threshold]);
+}
+
+const SARIF_LEVEL: Record<Severity, 'error' | 'warning' | 'note'> = { high: 'error', medium: 'warning', low: 'note', info: 'note' };
+// GitHub code scanning shows `security-severity` (0-10) as Critical/High/Medium/Low
+const SARIF_SECURITY_SEVERITY: Record<Severity, string> = { high: '8.0', medium: '5.5', low: '3.0', info: '1.0' };
+
+/**
+ * SARIF 2.1.0 for GitHub code scanning (`github/codeql-action/upload-sarif`).
+ * Head-side findings carry `region.startLine`; base-side findings (something that was removed) are attached to the
+ * file without a region, because a base line number would point at the wrong place in the head file.
+ */
+export function renderSarif(r: DiffResult, toolVersion: string): string {
+  const usedRules = [...new Set(r.findings.map((f) => f.rule))].sort();
+  const worst = (rule: string): Severity =>
+    r.findings.filter((f) => f.rule === rule).reduce<Severity>((m, f) => (SEVERITY_RANK[f.severity] > SEVERITY_RANK[m] ? f.severity : m), 'info');
+  const allRules = [...new Set([...Object.keys(RULES), ...usedRules])].sort();
+  const rules = allRules.map((id) => {
+    const sev = worst(id);
+    return {
+      id,
+      name: id.replace(/(^|-)([a-z])/g, (_m, _d, c: string) => c.toUpperCase()),
+      shortDescription: { text: RULES[id] ?? id },
+      helpUri: 'https://github.com/cosmichackerx/agent-context-diff#rules-selection',
+      defaultConfiguration: { level: SARIF_LEVEL[sev] },
+      properties: { tags: ['security', 'ai-agents'], 'security-severity': SARIF_SECURITY_SEVERITY[sev] },
+    };
+  });
+  const ruleIndex = new Map(allRules.map((id, i) => [id, i]));
+  const results = r.findings.map((f) => {
+    const physicalLocation: Record<string, unknown> = { artifactLocation: { uri: f.file, uriBaseId: '%SRCROOT%' } };
+    if (f.line && f.side !== 'base') physicalLocation.region = { startLine: f.line };
+    const where = f.side === 'base' ? ' (from the base version of the file)' : '';
+    return {
+      ruleId: f.rule,
+      ruleIndex: ruleIndex.get(f.rule) ?? 0,
+      level: SARIF_LEVEL[f.severity],
+      message: { text: `${f.message}${where}` },
+      locations: [{ physicalLocation }],
+      partialFingerprints: { 'agentContextDiff/v1': createHash('sha256').update(`${f.rule}\n${f.file}\n${f.message}`).digest('hex').slice(0, 32) },
+      properties: { severity: f.severity, category: f.category, side: f.side ?? 'head' },
+    };
+  });
+  return JSON.stringify(
+    {
+      $schema: 'https://json.schemastore.org/sarif-2.1.0.json',
+      version: '2.1.0',
+      runs: [
+        {
+          tool: {
+            driver: {
+              name: 'agent-context-diff',
+              version: toolVersion,
+              informationUri: 'https://github.com/cosmichackerx/agent-context-diff',
+              rules,
+            },
+          },
+          originalUriBaseIds: { '%SRCROOT%': { description: { text: 'Repository root' } } },
+          properties: { base: r.base, head: r.head },
+          results,
+        },
+      ],
+    },
+    null,
+    2,
+  );
 }

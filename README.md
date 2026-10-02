@@ -66,7 +66,7 @@ agent-context-diff --list-rules
 |---|---|
 | `-C, --cwd <dir>` | Run as if started in `<dir>` |
 | `--base <ref>` / `--head <ref>` | Alternative to positional refs; `--head worktree` = working tree |
-| `-f, --format` | `text` (default), `markdown`, `json`, `github` (workflow annotations) |
+| `-f, --format` | `text` (default), `markdown`, `json`, `github` (workflow annotations), `sarif` (code scanning) |
 | `-o, --output <file>` | Write the report to a file |
 | `--fail-on <level>` | `high`, `medium`, `low`, `info`, `never` (default `never`) |
 | `--check-divergence` | Opt-in: report `AGENTS.md`/`CLAUDE.md` pairs in one directory whose content differs |
@@ -88,10 +88,39 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0          # both sides of the PR must be available
-      - uses: cosmichackerx/agent-context-diff@v0.1.0
+      - uses: cosmichackerx/agent-context-diff@v0.1.1
         with:
           fail-on: high           # high | medium | low | info | never
 ```
+
+### Code scanning (SARIF)
+
+`--format sarif` writes SARIF 2.1.0 (validated against the official JSON schema in the test suite). Head-side
+findings carry a line; findings about something *removed* are attached to the file without a line. Upload with the
+CodeQL action's uploader so findings show up in the **Security → Code scanning** tab:
+
+```yaml
+jobs:
+  diff:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write      # needed by upload-sarif
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: cosmichackerx/agent-context-diff@v0.1.1
+        with:
+          format: sarif
+          output-file: agent-context.sarif
+      - uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: agent-context.sarif
+          category: agent-context-diff
+```
+
+Code scanning is free for public repositories; private repositories need GitHub Code Security.
 
 On pull requests the base and head default to the PR's base/head SHAs. Findings appear as annotations, and a
 Markdown report is added to the job summary (`summary: false` to disable). Inputs: `base`, `head`,
@@ -237,7 +266,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## Roadmap
 
 See the open [roadmap issues](https://github.com/cosmichackerx/agent-context-diff/issues?q=is%3Aissue+is%3Aopen+label%3Aroadmap):
-allow-list/baseline file, SARIF output, TOML/YAML configs, PR-comment mode, npm publication, more agent tools.
+allow-list/baseline file, TOML/YAML configs, PR-comment mode, npm publication, more agent tools.
 
 ## License
 

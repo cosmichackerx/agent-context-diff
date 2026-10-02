@@ -1,6 +1,6 @@
 export { diffSnapshots, highestSeverity } from './diff.js';
 export { resolveRange } from './git.js';
-export { renderText, renderMarkdown, renderJson, renderGithub, meetsThreshold } from './report.js';
+export { renderText, renderMarkdown, renderJson, renderGithub, renderSarif, meetsThreshold } from './report.js';
 export { diffInstructionFile } from './instructions.js';
 export { diffServers, extractServers } from './mcp.js';
 export { diffClaudeSettings } from './claude.js';

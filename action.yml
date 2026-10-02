@@ -18,7 +18,7 @@ inputs:
     description: Lowest severity that fails the step (high, medium, low, info, never).
     default: never
   format:
-    description: Report format (text, markdown, json, github).
+    description: Report format (text, markdown, json, github, sarif).
     default: github
   output-file:
     description: Optional file to write the report to (replaces stdout).
