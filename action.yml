@@ -26,6 +26,9 @@ inputs:
   summary:
     description: Also append a Markdown report to the job summary (true or false).
     default: "true"
+  check-divergence:
+    description: Also report AGENTS.md / CLAUDE.md pairs in one directory that differ (true or false).
+    default: "false"
   node-version:
     description: Node.js version used to run the tool (20 or newer).
     default: "22"
@@ -34,7 +37,10 @@ runs:
   steps:
     - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
       with:
-        node-version: ${{ inputs.node-version }}
+        check-divergence:
+    description: Also report AGENTS.md / CLAUDE.md pairs in one directory that differ (true or false).
+    default: "false"
+  node-version: ${{ inputs.node-version }}
     - name: Build agent-context-diff
       shell: bash
       env:
@@ -54,12 +60,17 @@ runs:
         INPUT_FORMAT: ${{ inputs.format }}
         INPUT_OUTPUT_FILE: ${{ inputs.output-file }}
         INPUT_SUMMARY: ${{ inputs.summary }}
+        INPUT_DIVERGENCE: ${{ inputs.check-divergence }}
       run: |
         cli="$ACTION_DIR/dist/src/cli.js"
         range="$INPUT_BASE...$INPUT_HEAD"
         if [ "$INPUT_SUMMARY" = "true" ] && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-          node "$cli" -C "$INPUT_WD" "$range" --format markdown >> "$GITHUB_STEP_SUMMARY" || true
+          summary_args=()
+          if [ "$INPUT_DIVERGENCE" = "true" ]; then summary_args+=(--check-divergence); fi
+          node "$cli" -C "$INPUT_WD" "$range" --format markdown "${summary_args[@]}" >> "$GITHUB_STEP_SUMMARY" || true
         fi
-        args=(-C "$INPUT_WD" "$range" --format "$INPUT_FORMAT" --fail-on "$INPUT_FAIL_ON")
+        extra=()
+        if [ "$INPUT_DIVERGENCE" = "true" ]; then extra+=(--check-divergence); fi
+        args=(-C "$INPUT_WD" "$range" --format "$INPUT_FORMAT" --fail-on "$INPUT_FAIL_ON" "${extra[@]}")
         if [ -n "$INPUT_OUTPUT_FILE" ]; then args+=(--output "$INPUT_OUTPUT_FILE"); fi
         node "$cli" "${args[@]}"

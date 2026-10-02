@@ -1,5 +1,6 @@
 /** Catalogue of rule ids (for `--list-rules` and the README). */
 export const RULES: Record<string, string> = {
+  'ctx-files-diverge': 'AGENTS.md and CLAUDE.md in the same directory differ (opt-in with --check-divergence; CLAUDE.md importing @AGENTS.md is fine).',
   'ctx-file-added': 'A new agent instruction file (AGENTS.md, CLAUDE.md, Cursor rule, SKILL.md ...) appeared.',
   'ctx-file-removed': 'An agent instruction file was deleted.',
   'ctx-section-added': 'A Markdown section was added to an instruction file.',

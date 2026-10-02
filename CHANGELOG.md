@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Opt-in `--check-divergence` (Action input `check-divergence`): rule `ctx-files-diverge` (low) reports an
+  `AGENTS.md` / `CLAUDE.md` pair in the same directory whose content differs after a change touched one of them.
+  A `CLAUDE.md` that imports `@AGENTS.md` (alone or with extra Claude-specific text) is recognised as in sync. (#7)
+- More agent files: Aider `CONVENTIONS.md`, Amazon Q (`.amazonq/rules`, `mcp.json`, `default.json`, `cli-agents`),
+  Kiro steering, Continue (`.continue/rules`, `.continue/mcpServers`), Augment and Trae rules, Copilot prompt files and
+  custom agents, `.claude/rules`, `.cursor/commands`. (#8)
+
 ### Changed (false-positive tuning, measured on 16 real repositories)
 - Prohibitions (`ctx-guardrail-removed`, `ctx-file-removed`, `ctx-section-removed`) must be imperative: "Never …",
   "Do not …", "Avoid …", `NEVER`; descriptive prose ("runs that don't time out") no longer counts. Prohibitions inside
@@ -35,7 +43,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Reviewing the very first commit of a repository (`<sha>^`, `HEAD~1` on a one-commit history) now diffs against the
   empty tree instead of failing with "unknown git ref".
 
-### Added
 - `scripts/corpus-check.mjs`: measure the noise of the tool on any list of local clones.
 - README: "Reducing noise" (documents expected findings and how to handle them) and "Measured on real repositories".
 - Regression tests distilled from real findings (`test/tuning.test.ts`, `test/root-commit.test.ts`).

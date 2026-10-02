@@ -75,6 +75,7 @@ jobs:
           git config user.name ci
           printf '# Rules\n- Never push to main.\n' > AGENTS.md
           printf '{"mcpServers":{}}\n' > .mcp.json
+          printf '# Claude\n- Be concise.\n' > CLAUDE.md
           git add -A && git commit -qm base
           printf '# Rules\n' > AGENTS.md
           printf '{"mcpServers":{"x":{"command":"npx","args":["-y","some-server"]}}}\n' > .mcp.json
@@ -96,6 +97,22 @@ jobs:
             for (const id of ['mcp-server-added', 'mcp-unpinned-package', 'ctx-guardrail-removed']) {
               if (!rules.includes(id)) { console.error('missing', id, rules); process.exit(1); }
             }
+          "
+      - name: Divergence check is opt-in (check-divergence input)
+        uses: ./
+        with:
+          working-directory: ${{ runner.temp }}/fx
+          base: HEAD~1
+          head: HEAD
+          format: json
+          check-divergence: "true"
+          output-file: ${{ runner.temp }}/divergence.json
+      - name: Report contains the divergence finding only when asked
+        run: |
+          node -e "
+            const read = (f) => JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP + '/' + f, 'utf8')).findings.map((x) => x.rule);
+            if (!read('divergence.json').includes('ctx-files-diverge')) { console.error('missing ctx-files-diverge'); process.exit(1); }
+            if (read('report.json').includes('ctx-files-diverge')) { console.error('ctx-files-diverge must be opt-in'); process.exit(1); }
           "
       - name: Action fails with fail-on=high
         id: gate

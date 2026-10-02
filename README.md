@@ -69,6 +69,7 @@ agent-context-diff --list-rules
 | `-f, --format` | `text` (default), `markdown`, `json`, `github` (workflow annotations) |
 | `-o, --output <file>` | Write the report to a file |
 | `--fail-on <level>` | `high`, `medium`, `low`, `info`, `never` (default `never`) |
+| `--check-divergence` | Opt-in: report `AGENTS.md`/`CLAUDE.md` pairs in one directory whose content differs |
 | `--no-color` | Disable colors (also honours `NO_COLOR`) |
 
 Exit codes: `0` ok · `1` a finding at or above `--fail-on` · `2` usage/git error.
@@ -94,7 +95,7 @@ jobs:
 
 On pull requests the base and head default to the PR's base/head SHAs. Findings appear as annotations, and a
 Markdown report is added to the job summary (`summary: false` to disable). Inputs: `base`, `head`,
-`working-directory`, `fail-on`, `format`, `output-file`, `summary`, `node-version`. The action builds the tool from
+`working-directory`, `fail-on`, `format`, `output-file`, `summary`, `check-divergence`, `node-version`. The action builds the tool from
 source with `npm ci --ignore-scripts` on the runner; it needs no secrets and makes no network calls beyond npm
 installing the dev toolchain.
 
@@ -102,11 +103,15 @@ installing the dev toolchain.
 
 **Instruction files:** `AGENTS.md`, `AGENT.md`, `CLAUDE.md`, `CLAUDE.local.md`, `GEMINI.md`, `.cursorrules`,
 `.windsurfrules`, `.clinerules`, `.github/copilot-instructions.md`, `.github/instructions/*.md`,
-`.cursor/rules/**/*.{md,mdc}`, `.windsurf/rules`, `.roo/rules*`, `.junie/guidelines.md`,
-`.claude/{commands,agents,skills}/**/*.md`, `SKILL.md` (in any directory; `node_modules` is ignored).
+`.cursor/rules/**/*.{md,mdc}`, `.cursor/commands`, `.windsurf/rules`, `.roo/rules*`, `.junie/guidelines.md`,
+`.claude/{commands,agents,skills,rules}/**/*.md`, `SKILL.md` (in any directory; `node_modules` is ignored), and
+since v0.1.1 Aider `CONVENTIONS.md` (repository root), Amazon Q `.amazonq/rules`, Kiro `.kiro/steering`,
+Continue `.continue/rules`, Augment `.augment/rules`, Trae `.trae/rules`, Copilot `.github/prompts/*.prompt.md`,
+`.github/agents/*.md` and `.github/chatmodes/*.chatmode.md`.
 
 **MCP / agent configs (JSON or JSONC):** `.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json`, `.gemini/settings.json`,
 `.roo/mcp.json`, `.kiro/settings/mcp.json`, `.windsurf/mcp.json`, `.zed/settings.json`, `opencode.json(c)`,
+`.amazonq/{mcp,default}.json`, `.amazonq/cli-agents/*.json`, `.continue/mcpServers/*.json`,
 `.claude/settings.json`, `.claude/settings.local.json`. Server blocks under `mcpServers`, `servers`,
 `context_servers` and `mcp` are normalised (stdio command + args, argv-style `command`, Zed-style command objects,
 remote `url`/`headers`).
@@ -132,6 +137,7 @@ Run `agent-context-diff --list-rules` for the full list.
 | `ctx-dangerous-command` | medium / high | `curl … \| sh`, `--no-verify`, `--dangerously-skip-permissions`, `rm -rf /` … (not when the line forbids it) |
 | `ctx-html-comment` | medium | Invisible-when-rendered comment added to an instruction file |
 | `ctx-frontmatter-changed` | medium | `tools`, `allowed-tools`, `alwaysApply`, `permissionMode` changed |
+| `ctx-files-diverge` | low | Opt-in (`--check-divergence`): `AGENTS.md` and `CLAUDE.md` in one directory differ. `CLAUDE.md` containing `@AGENTS.md` is fine |
 
 Only **added** lines are scanned for risky content, so pre-existing text is not re-reported on every PR, and lines
 that merely moved (to another section *or another instruction file*, e.g. `CLAUDE.md` → `AGENTS.md`) are not treated
