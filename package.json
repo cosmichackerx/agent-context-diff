@@ -1,0 +1,55 @@
+{
+  "name": "agent-context-diff",
+  "version": "0.1.0",
+  "description": "Diff AGENTS.md, CLAUDE.md, Cursor rules and MCP server configs between git refs and flag risky changes: new MCP servers, widened permissions, removed guardrails, hidden Unicode.",
+  "keywords": [
+    "agents-md",
+    "claude-md",
+    "mcp",
+    "model-context-protocol",
+    "ai-agents",
+    "coding-agents",
+    "prompt-injection",
+    "supply-chain-security",
+    "git-diff",
+    "code-review",
+    "cli",
+    "typescript"
+  ],
+  "license": "MIT",
+  "author": "Muhammad Arslan <cosmichackerx@users.noreply.github.com>",
+  "homepage": "https://github.com/cosmichackerx/agent-context-diff#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cosmichackerx/agent-context-diff.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cosmichackerx/agent-context-diff/issues"
+  },
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "bin": {
+    "agent-context-diff": "./dist/src/cli.js"
+  },
+  "files": [
+    "dist/src",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node scripts/run-tests.mjs",
+    "start": "node dist/src/cli.js",
+    "prepare": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "typescript": "^5.9.0"
+  }
+}

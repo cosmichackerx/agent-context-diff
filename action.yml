@@ -1,0 +1,65 @@
+name: Agent Context Diff
+description: Review changes to AGENTS.md, CLAUDE.md, Cursor rules and MCP/agent configs between git refs; flag new MCP servers, widened permissions, removed guardrails and hidden Unicode.
+author: cosmichackerx
+branding:
+  icon: shield
+  color: purple
+inputs:
+  base:
+    description: Base ref or SHA. Defaults to the pull request base SHA, or HEAD~1 outside pull requests.
+    default: ""
+  head:
+    description: Head ref or SHA. Defaults to the pull request head SHA, or HEAD.
+    default: ""
+  working-directory:
+    description: Directory inside the git repository to run in.
+    default: "."
+  fail-on:
+    description: Lowest severity that fails the step (high, medium, low, info, never).
+    default: never
+  format:
+    description: Report format (text, markdown, json, github).
+    default: github
+  output-file:
+    description: Optional file to write the report to (replaces stdout).
+    default: ""
+  summary:
+    description: Also append a Markdown report to the job summary (true or false).
+    default: "true"
+  node-version:
+    description: Node.js version used to run the tool (20 or newer).
+    default: "22"
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      with:
+        node-version: ${{ inputs.node-version }}
+    - name: Build agent-context-diff
+      shell: bash
+      env:
+        ACTION_DIR: ${{ github.action_path }}
+      run: |
+        cd "$ACTION_DIR"
+        npm ci --ignore-scripts --no-audit --no-fund
+        npm run build
+    - name: Run agent-context-diff
+      shell: bash
+      env:
+        ACTION_DIR: ${{ github.action_path }}
+        INPUT_BASE: ${{ inputs.base || github.event.pull_request.base.sha || 'HEAD~1' }}
+        INPUT_HEAD: ${{ inputs.head || github.event.pull_request.head.sha || 'HEAD' }}
+        INPUT_WD: ${{ inputs.working-directory }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_FORMAT: ${{ inputs.format }}
+        INPUT_OUTPUT_FILE: ${{ inputs.output-file }}
+        INPUT_SUMMARY: ${{ inputs.summary }}
+      run: |
+        cli="$ACTION_DIR/dist/src/cli.js"
+        range="$INPUT_BASE...$INPUT_HEAD"
+        if [ "$INPUT_SUMMARY" = "true" ] && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+          node "$cli" -C "$INPUT_WD" "$range" --format markdown >> "$GITHUB_STEP_SUMMARY" || true
+        fi
+        args=(-C "$INPUT_WD" "$range" --format "$INPUT_FORMAT" --fail-on "$INPUT_FAIL_ON")
+        if [ -n "$INPUT_OUTPUT_FILE" ]; then args+=(--output "$INPUT_OUTPUT_FILE"); fi
+        node "$cli" "${args[@]}"

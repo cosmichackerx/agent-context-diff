@@ -1,0 +1,11 @@
+name: Feature or new rule
+description: Support another agent config file or add a detection rule
+labels: [enhancement]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What should it detect or support?
+      description: Link to the tool's documentation for the config format if you can.
+    validations:
+      required: true

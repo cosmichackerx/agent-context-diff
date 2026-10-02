@@ -1,0 +1,19 @@
+name: Bug report
+description: A wrong, missing or noisy finding, or a crash
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Include the command, the output, and what you expected. Remove any secrets from snippets.
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: Minimal before/after sample of the file(s)
+  - type: input
+    id: version
+    attributes:
+      label: Version (`agent-context-diff --version`) and OS

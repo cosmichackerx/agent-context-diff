@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Pack and smoke-test the tarball
+        run: |
+          npm pack --silent
+          dir="$(mktemp -d)"
+          cd "$dir"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund "$GITHUB_WORKSPACE"/agent-context-diff-*.tgz
+          npx --no-install agent-context-diff --version
+          npx --no-install agent-context-diff --list-rules | head -5
+
+  action-selftest:
+    name: action-selftest (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Create a fixture repository with a risky change
+        run: |
+          fx="${RUNNER_TEMP}/fx"
+          mkdir -p "$fx/.claude"
+          cd "$fx"
+          git init -q -b main
+          git config user.email ci@example.com
+          git config user.name ci
+          printf '# Rules\n- Never push to main.\n' > AGENTS.md
+          printf '{"mcpServers":{}}\n' > .mcp.json
+          git add -A && git commit -qm base
+          printf '# Rules\n' > AGENTS.md
+          printf '{"mcpServers":{"x":{"command":"npx","args":["-y","some-server"]}}}\n' > .mcp.json
+          git add -A && git commit -qm risky
+      - name: Action reports findings and passes with fail-on=never
+        uses: ./
+        with:
+          working-directory: ${{ runner.temp }}/fx
+          base: HEAD~1
+          head: HEAD
+          fail-on: never
+          format: json
+          output-file: ${{ runner.temp }}/report.json
+      - name: Report contains the expected findings
+        run: |
+          node -e "
+            const r = JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP + '/report.json', 'utf8'));
+            const rules = r.findings.map((f) => f.rule);
+            for (const id of ['mcp-server-added', 'mcp-unpinned-package', 'ctx-guardrail-removed']) {
+              if (!rules.includes(id)) { console.error('missing', id, rules); process.exit(1); }
+            }
+          "
+      - name: Action fails with fail-on=high
+        id: gate
+        uses: ./
+        continue-on-error: true
+        with:
+          working-directory: ${{ runner.temp }}/fx
+          base: HEAD~1
+          head: HEAD
+          fail-on: high
+      - name: The gate must have failed
+        if: steps.gate.outcome != 'failure'
+        run: echo "expected fail-on=high to fail the step" >&2 && exit 1
