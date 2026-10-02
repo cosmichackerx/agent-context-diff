@@ -4,6 +4,42 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed (false-positive tuning, measured on 16 real repositories)
+- Prohibitions (`ctx-guardrail-removed`, `ctx-file-removed`, `ctx-section-removed`) must be imperative: "Never …",
+  "Do not …", "Avoid …", `NEVER`; descriptive prose ("runs that don't time out") no longer counts. Prohibitions inside
+  a removed section are reported as individual guardrail findings; the section itself is `low`.
+- A prohibition that was only reworded (or extended) is not reported as removed; long lines are quoted around the
+  prohibition.
+- Lines that moved between *different* instruction files (`CLAUDE.md` → `AGENTS.md`, `.cursorrules` → `.cursor/rules`)
+  are neither a removed guardrail nor new risky text. Pure renames/consolidations are `info`.
+- `ctx-file-added` / `ctx-file-removed`: `medium` only for files loaded into every session; skills, commands and scoped
+  rules are `low`.
+- `ctx-section-added` is `info`; more than six section-level notices in one file collapse into one summary finding.
+- `ctx-injection-phrase`: "silently/quietly" only when followed by an action verb; "do not tell the user *to* …" is no
+  longer treated as hiding; gerunds ("without telling the user …") are caught.
+- `ctx-dangerous-command`: lines that forbid a command are skipped; `--force-with-lease`, `eval` as part of a word and
+  union types listing `bypassPermissions` are not flagged; `curl … | sh` over https is `medium` (`high` for http,
+  `sudo` or a raw IP).
+- `ctx-html-comment`: comments inside code fences and bare tool markers (`<!-- BEGIN:x -->`, `prettier-ignore`,
+  `markdownlint-disable`, `toc`) are ignored.
+- `hook-added` is `medium` for plain local commands and `high` when the command uses the network, eval, sudo or
+  command substitution.
+- Claude permission rules: dev-loop runners (`npm test`, `npx tsc`, `cargo test` …), read-only `gh`/`git`/`grep` commands,
+  `WebSearch` and domain-scoped `WebFetch` are `low`.
+- `mcp-url-changed` is `low` when only the query string changed; adding `disable-model-invocation: true` to a skill
+  is `info`.
+
+### Fixed
+- Reviewing the very first commit of a repository (`<sha>^`, `HEAD~1` on a one-commit history) now diffs against the
+  empty tree instead of failing with "unknown git ref".
+
+### Added
+- `scripts/corpus-check.mjs`: measure the noise of the tool on any list of local clones.
+- README: "Reducing noise" (documents expected findings and how to handle them) and "Measured on real repositories".
+- Regression tests distilled from real findings (`test/tuning.test.ts`, `test/root-commit.test.ts`).
+
 ## [0.1.0] - 2026-10-02
 
 First public release.

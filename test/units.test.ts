@@ -124,6 +124,15 @@ test('claude: allow rule severity', () => {
   assert.equal(allowSeverity('Write'), 'high');
   assert.equal(allowSeverity('Read(./src/**)'), 'low');
   assert.equal(allowSeverity('Bash(git status)'), 'low');
-  assert.equal(allowSeverity('Bash(npm run test:*)'), 'medium');
+  assert.equal(allowSeverity('Bash(npm run test:*)'), 'low');
+  assert.equal(allowSeverity('Bash(npx tsc:*)'), 'low');
+  assert.equal(allowSeverity('Bash(grep:*)'), 'low');
+  assert.equal(allowSeverity('Bash(gh pr view:*)'), 'low');
+  assert.equal(allowSeverity('WebSearch'), 'low');
+  assert.equal(allowSeverity('WebFetch(domain:github.com)'), 'low');
+  assert.equal(allowSeverity('WebFetch'), 'high');
+  assert.equal(allowSeverity('Bash(make:*)'), 'medium');
+  assert.equal(allowSeverity('Bash(uv run:*)'), 'medium');
+  assert.equal(allowSeverity('Bash(python3:*)'), 'high');
   assert.equal(allowSeverity('mcp__github'), 'medium');
 });

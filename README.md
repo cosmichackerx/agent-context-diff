@@ -125,16 +125,74 @@ Run `agent-context-diff --list-rules` for the full list.
 | `mcp-shell-wrapper` | medium / high | `bash -c …` launch, or download-and-execute one-liner |
 | `perm-allow-added` | low – high | Severity scales with breadth: `Read(*)` low … `Bash(*)` high |
 | `perm-deny-removed`, `perm-default-mode-changed` | high | Guardrail removed / `bypassPermissions` |
-| `hook-added` | high | New hook = new shell command on agent events |
+| `hook-added` | medium / high | New hook = new shell command on agent events (high when it uses the network, eval, sudo …) |
 | `ctx-guardrail-removed` | medium | A "never / do not / must not" line disappeared (moves are ignored) |
 | `ctx-hidden-characters` | high | Zero-width, bidi or Unicode tag characters in added text |
 | `ctx-injection-phrase` | high | "Ignore previous instructions", "don't tell the user" … |
-| `ctx-dangerous-command` | medium / high | `curl … \| sh`, `--no-verify`, `--dangerously-skip-permissions`, `rm -rf /` … |
+| `ctx-dangerous-command` | medium / high | `curl … \| sh`, `--no-verify`, `--dangerously-skip-permissions`, `rm -rf /` … (not when the line forbids it) |
 | `ctx-html-comment` | medium | Invisible-when-rendered comment added to an instruction file |
 | `ctx-frontmatter-changed` | medium | `tools`, `allowed-tools`, `alwaysApply`, `permissionMode` changed |
 
 Only **added** lines are scanned for risky content, so pre-existing text is not re-reported on every PR, and lines
-that merely moved are not treated as new.
+that merely moved (to another section *or another instruction file*, e.g. `CLAUDE.md` → `AGENTS.md`) are not treated
+as new or as deleted.
+
+## Reducing noise
+
+Config review tools live or die by their false-positive rate, so v0.1.1 was tuned against real history (see
+[Measured on real repositories](#measured-on-real-repositories)). What is deliberately quiet, what is still
+reported on purpose, and what you can do about it today:
+
+| You will see | Why it is reported | What to do |
+|---|---|---|
+| `mcp-server-added` (high) for a documentation server such as `https://docs.example.com/mcp` | Any new server is a new data-egress or code-execution surface. This is the finding you most want a human to see, and it appeared on every real repo that adopted MCP. | Review it once. Use `--fail-on` to decide which severities block a PR, e.g. `--fail-on high` blocks only new servers, widened permissions and hidden characters. |
+| `mcp-unpinned-package` (medium) for `npx -y @scope/server` | A package runner without a version executes whatever upstream publishes next. A lockfile does **not** pin `npx` launches that happen outside the project. | Pin it (`@scope/server@1.2.3`) or accept it by gating on `--fail-on high`. |
+| `perm-allow-added` (low) for `Bash(npm test:*)`, `Bash(grep:*)`, `Bash(gh pr view:*)`, `WebFetch(domain:github.com)` | Intentionally broad but read-only or dev-loop rules are `low`, not `medium`. | Nothing; they stay below `--fail-on medium`. Rules that run arbitrary code (`Bash(python3:*)`, `Bash(uv run:*)`, `Bash(make:*)`) remain `medium`/`high` on purpose. |
+| `hook-added` (medium) for a formatter hook such as `bunx prettier --write .` | A hook is a shell command that runs on every agent event. Plain local commands are `medium`; hooks that use the network, `eval`, `sudo` or command substitution are `high`. | Review the hook and the script it calls (the script itself is not an agent file and is not analysed). |
+| `ctx-guardrail-removed` (medium) | A line starting with "Never / Do not / Don't / Avoid / Must not" was deleted and nothing similar remains in the file. Prose such as "runs that don't time out" is **not** treated as a prohibition, and a reworded prohibition is not reported. | Intentional edits are expected; the finding points at the base-side line so you can confirm quickly. |
+| `ctx-file-added` / `ctx-file-removed` | Only files loaded into *every* session (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`, `copilot-instructions.md`, `alwaysApply: true` rules) are `medium`; skills, commands and scoped rules are `low`. A file whose content still exists in another instruction file (a rename or consolidation) is `info`. | Nothing; renames and consolidations are no longer alarming. |
+| `ctx-section-*` (info/low) | Structural notices. More than six in one file collapse into a single summary line. | Filter with `--fail-on medium`. |
+| `ctx-dangerous-command` for `curl … \| sh` (medium) | An installer one-liner was added to instructions an agent will follow. `http://`, `sudo`, or a raw-IP URL makes it `high`. Lines that *forbid* a command ("never use `--no-verify`"), type unions that list `bypassPermissions`, and `--force-with-lease` are not flagged. | Replace the one-liner with a pinned package-manager install if you can. |
+| `ctx-html-comment` (medium) | Comments are invisible in rendered Markdown but read by agents. Comments inside code fences and bare tool markers (`<!-- BEGIN:x -->`, `<!-- prettier-ignore-start -->`) are ignored. | Move the text out of the comment, or review it. |
+
+An allow-list/baseline file for acknowledging individual findings is on the [roadmap](#roadmap); until then
+`--fail-on` is the supported way to set a threshold per repository.
+
+## Measured on real repositories
+
+`scripts/corpus-check.mjs` runs the built tool over every commit that touched an agent file, plus wider windows of
+six touching commits, in a list of git repositories (blobless clones are fine). On 2026-10-02 it was run over
+16 public repositories with real agent configuration history (`openai/codex`, `langchain-ai/langchain`,
+`cline/cline`, `astral-sh/uv`, `vercel/ai`, `getsentry/warden`, `getzep/zep`, `modelcontextprotocol/typescript-sdk`,
+`livestorejs/livestore`, `Doist/todoist-mcp`, `anthropics/claude-code-action`, `bitrise-io/bitrise-workflow-editor`,
+`github/github-mcp-server`, `ClickHouse/ai-sdk-cpp`, `disler/agent-sandboxes`, `jnarowski/agentcmd`):
+471 historical diffs.
+
+| Over 471 diffs | v0.1.0 | v0.1.1 |
+|---|---:|---:|
+| Findings in total | 3207 | 1970 |
+| `high` findings | 48 | 25 |
+| `medium` findings | 844 | 207 |
+| Diffs with at least one `medium` or `high` finding | 203 (43 %) | 110 (23 %) |
+| Diffs with at least one `high` finding | 42 (9 %) | 21 (4 %) |
+
+The tuning that produced this: prohibitions must be imperative (not "runs that don't time out"); "silently" alone is
+not secrecy wording; "do not tell the user *to run* X" is not hiding; lines that forbid a command are not
+instructions to run it; `--force-with-lease`, `eval` inside `locomo-eval`, and union types listing `bypassPermissions`
+are not dangerous; text that moved between instruction files is neither deleted nor new; reworded prohibitions are
+not removals; hooks, dev-loop permissions and renamed/consolidated files got graded severities; and big rewrites
+collapse into one summary line.
+
+Every remaining `high` finding was reviewed by hand; they are real additions (new MCP servers, `Write`/`python3`
+permissions, an example skill that tells the model to hide a rule from the user). The `medium` findings are mostly
+`ctx-guardrail-removed`, where a "don't/never/avoid" line really was deleted or rewritten. Those are review prompts,
+not defects, which is why the gate is `--fail-on` and not "any finding".
+
+```bash
+git clone --filter=blob:none --no-checkout https://github.com/OWNER/REPO.git
+npm run build
+node scripts/corpus-check.mjs --max 40 --jsonl findings.jsonl REPO
+```
 
 ## How it compares
 
@@ -150,7 +208,7 @@ This is a young, fast-moving niche. Related projects, each with a different focu
 `agent-context-diff` is complementary: it answers **"what did this PR change in my agents' instructions and
 capabilities, and is any of it risky?"** across all of those files, directly from git history.
 
-## Limitations (v0.1.0)
+## Limitations
 
 - Heuristics, not proof: expect some false positives and misses. Treat findings as review prompts. Severity is a
   judgement call; use `--fail-on` to pick your own threshold.

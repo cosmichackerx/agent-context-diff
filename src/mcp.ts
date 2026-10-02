@@ -168,6 +168,18 @@ function isLocalHost(url: string): boolean {
   }
 }
 
+/** Same scheme, host and path; only the query string or fragment differs. */
+function queryOnly(x: string | undefined, y: string | undefined): boolean {
+  if (!x || !y) return false;
+  try {
+    const u = new URL(x);
+    const v = new URL(y);
+    return u.origin === v.origin && u.pathname === v.pathname;
+  } catch {
+    return false;
+  }
+}
+
 const sameList = (a: string[], b: string[]): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
 
 /** Security-relevant checks that apply to the head state of a server (new or modified). */
@@ -245,7 +257,7 @@ export function diffServers(file: string, before: Map<string, McpServer>, after:
     if (urlChanged) {
       const ha = a.url ? hostOf(a.url) : undefined;
       const hb = b.url ? hostOf(b.url) : undefined;
-      f('mcp-url-changed', ha !== hb ? 'high' : 'medium', `url changed: ${a.url ? redactUrl(a.url) : '(none)'} → ${b.url ? redactUrl(b.url) : '(none)'}${ha !== hb ? ' (different host)' : ''}`);
+      f('mcp-url-changed', ha !== hb ? 'high' : queryOnly(a.url, b.url) ? 'low' : 'medium', `url changed: ${a.url ? redactUrl(a.url) : '(none)'} → ${b.url ? redactUrl(b.url) : '(none)'}${ha !== hb ? ' (different host)' : ''}`);
     }
     if (a.transport !== b.transport) f('mcp-transport-changed', 'medium', `transport changed: ${a.transport} → ${b.transport}`);
 
