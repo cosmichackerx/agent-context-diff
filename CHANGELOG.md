@@ -6,6 +6,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- `action.yml` description shortened to the 125 characters GitHub Marketplace allows; a test now checks the name, description length, branding icon/color and composite `runs`.
+
 ## [0.1.1] - 2026-10-02
 
 ### Added
