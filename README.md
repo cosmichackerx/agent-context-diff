@@ -88,7 +88,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0          # both sides of the PR must be available
-      - uses: cosmichackerx/agent-context-diff@v0.3.0
+      - uses: cosmichackerx/agent-context-diff@v0.3.1
         with:
           fail-on: high           # high | medium | low | info | never
 ```
@@ -105,7 +105,7 @@ permissions:
 steps:
   - uses: actions/checkout@v5
     with: { fetch-depth: 0 }
-  - uses: cosmichackerx/agent-context-diff@v0.3.0
+  - uses: cosmichackerx/agent-context-diff@v0.3.1
     with:
       comment: true        # sticky comment, identified by a hidden marker
       fail-on: high
@@ -131,7 +131,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: cosmichackerx/agent-context-diff@v0.3.0
+      - uses: cosmichackerx/agent-context-diff@v0.3.1
         with:
           format: sarif
           output-file: agent-context.sarif
