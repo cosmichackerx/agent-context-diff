@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-02
+
 ### Added
 - `--format sarif` (SARIF 2.1.0) for GitHub code scanning: every rule is declared with a `security-severity`,
   head-side findings carry `region.startLine`, base-side findings are attached to the file without a region, stable
@@ -72,4 +74,5 @@ First public release.
 - Composite GitHub Action (`action.yml`).
 - Zero runtime dependencies; Node.js 20+; tested on Linux, Windows and macOS.
 
+[0.1.1]: https://github.com/cosmichackerx/agent-context-diff/releases/tag/v0.1.1
 [0.1.0]: https://github.com/cosmichackerx/agent-context-diff/releases/tag/v0.1.0
