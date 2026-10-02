@@ -7,6 +7,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- `--format sarif` (SARIF 2.1.0) for GitHub code scanning: every rule is declared with a `security-severity`,
+  head-side findings carry `region.startLine`, base-side findings are attached to the file without a region, stable
+  `partialFingerprints`. The test suite validates the output against the official schema. (#2)
 - Opt-in `--check-divergence` (Action input `check-divergence`): rule `ctx-files-diverge` (low) reports an
   `AGENTS.md` / `CLAUDE.md` pair in the same directory whose content differs after a change touched one of them.
   A `CLAUDE.md` that imports `@AGENTS.md` (alone or with extra Claude-specific text) is recognised as in sync. (#7)

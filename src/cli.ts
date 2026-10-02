@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { diffSnapshots } from './diff.js';
 import { GitError, resolveRange, UsageError } from './git.js';
-import { meetsThreshold, parseSeverity, renderGithub, renderJson, renderMarkdown, renderText } from './report.js';
+import { meetsThreshold, parseSeverity, renderGithub, renderJson, renderMarkdown, renderSarif, renderText } from './report.js';
 import { RULES } from './rules.js';
 import type { Severity } from './types.js';
 
@@ -21,7 +21,7 @@ Options:
   -C, --cwd <dir>        run as if started in <dir> (default: current directory)
       --base <ref>       base ref (default: HEAD)
       --head <ref>       head ref, or "worktree" (default: working tree)
-  -f, --format <fmt>     text | markdown | json | github   (default: text)
+  -f, --format <fmt>     text | markdown | json | github | sarif   (default: text)
   -o, --output <file>    write the report to a file instead of stdout
       --fail-on <level>  exit 1 if a finding is at least: high | medium | low | info | never (default: never)
       --check-divergence report AGENTS.md / CLAUDE.md pairs in one directory that differ (opt-in)
@@ -84,8 +84,8 @@ export function run(argv: string[], stdout: (s: string) => void = (s) => process
     return 0;
   }
   const format = values.format as string;
-  if (!['text', 'markdown', 'json', 'github'].includes(format)) {
-    stderr(`agent-context-diff: unknown --format '${format}' (text, markdown, json, github)\n`);
+  if (!['text', 'markdown', 'json', 'github', 'sarif'].includes(format)) {
+    stderr(`agent-context-diff: unknown --format '${format}' (text, markdown, json, github, sarif)\n`);
     return 2;
   }
   const failOnRaw = values['fail-on'] as string;
@@ -113,6 +113,9 @@ export function run(argv: string[], stdout: (s: string) => void = (s) => process
         break;
       case 'github':
         text = renderGithub(result);
+        break;
+      case 'sarif':
+        text = renderSarif(result, version());
         break;
       default:
         text = renderText(result, color);
