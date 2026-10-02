@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-03
+
+### Changed
+- Maintenance release, no change in what the tool reports. The action now uses `actions/setup-node` 7.0.0 (node24),
+  CI uses `actions/checkout` 7.0.1 (both pinned by commit SHA), TypeScript 7.0.2 builds the tool, a `dependabot.yml`
+  keeps dependencies current (major `@types/node` bumps are ignored: it tracks the oldest supported Node, 20), and CI
+  runs `dependabot-gaps` in pull request mode.
+
 ## [0.3.0] - 2026-10-03
 
 ### Added
