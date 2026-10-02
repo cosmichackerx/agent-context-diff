@@ -45,7 +45,7 @@ Requires Node.js 20+ and git. The package is not on the npm registry yet; instal
 ```bash
 npm install -g github:cosmichackerx/agent-context-diff
 # or run once without installing
-npx github:cosmichackerx/agent-context-diff main...HEAD
+npm exec --package=github:cosmichackerx/agent-context-diff -- agent-context-diff main...HEAD
 ```
 
 Or from a clone: `npm ci && npm run build && node dist/src/cli.js --help`.
