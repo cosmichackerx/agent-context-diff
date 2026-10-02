@@ -1,5 +1,5 @@
 name: Agent Context Diff
-description: Review changes to AGENTS.md, CLAUDE.md, Cursor rules and MCP/agent configs between git refs; flag new MCP servers, widened permissions, removed guardrails and hidden Unicode.
+description: Review AGENTS.md, CLAUDE.md, Cursor rules and MCP configs in a PR for new MCP servers, wider permissions and hidden text.
 author: cosmichackerx
 branding:
   icon: shield
