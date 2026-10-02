@@ -13,6 +13,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - More agent files: Aider `CONVENTIONS.md`, Amazon Q (`.amazonq/rules`, `mcp.json`, `default.json`, `cli-agents`),
   Kiro steering, Continue (`.continue/rules`, `.continue/mcpServers`), Augment and Trae rules, Copilot prompt files and
   custom agents, `.claude/rules`, `.cursor/commands`. (#8)
+- `scripts/corpus-check.mjs`: measure the noise of the tool on any list of local clones.
+- README: "Reducing noise" (documents expected findings and how to handle them) and "Measured on real repositories".
+- Regression tests distilled from real findings (`test/tuning.test.ts`, `test/root-commit.test.ts`).
 
 ### Changed (false-positive tuning, measured on 16 real repositories)
 - Prohibitions (`ctx-guardrail-removed`, `ctx-file-removed`, `ctx-section-removed`) must be imperative: "Never …",
@@ -42,10 +45,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 - Reviewing the very first commit of a repository (`<sha>^`, `HEAD~1` on a one-commit history) now diffs against the
   empty tree instead of failing with "unknown git ref".
-
-- `scripts/corpus-check.mjs`: measure the noise of the tool on any list of local clones.
-- README: "Reducing noise" (documents expected findings and how to handle them) and "Measured on real repositories".
-- Regression tests distilled from real findings (`test/tuning.test.ts`, `test/root-commit.test.ts`).
 
 ## [0.1.0] - 2026-10-02
 
