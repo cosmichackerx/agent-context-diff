@@ -37,10 +37,7 @@ runs:
   steps:
     - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
       with:
-        check-divergence:
-    description: Also report AGENTS.md / CLAUDE.md pairs in one directory that differ (true or false).
-    default: "false"
-  node-version: ${{ inputs.node-version }}
+        node-version: ${{ inputs.node-version }}
     - name: Build agent-context-diff
       shell: bash
       env:
