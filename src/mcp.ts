@@ -14,7 +14,7 @@ export interface McpServer {
   disabled: boolean;
 }
 
-const SERVER_KEYS = ['mcpServers', 'servers', 'context_servers', 'mcp'] as const;
+const SERVER_KEYS = ['mcpServers', 'servers', 'context_servers', 'mcp', 'mcp_servers'] as const;
 
 function str(v: unknown): string | undefined {
   return typeof v === 'string' ? v : undefined;
@@ -38,7 +38,7 @@ function approvals(cfg: Record<string, unknown>): string[] {
 }
 
 export function normalizeServer(name: string, cfg: Record<string, unknown>): McpServer {
-  let command = str(cfg.command);
+  let command = str(cfg.command) ?? str(cfg.cmd);
   let args: string[] = Array.isArray(cfg.args) ? cfg.args.map(String) : [];
   let env = strMap(cfg.env);
   if (Array.isArray(cfg.command)) {
@@ -52,8 +52,10 @@ export function normalizeServer(name: string, cfg: Record<string, unknown>): Mcp
     if (Array.isArray(cfg.command.args)) args = cfg.command.args.map(String);
     env = { ...env, ...strMap(cfg.command.env) };
   }
-  env = { ...env, ...strMap(cfg.environment) };
-  const url = str(cfg.url) ?? str(cfg.serverUrl) ?? str(cfg.httpUrl) ?? str(cfg.endpoint);
+  env = { ...env, ...strMap(cfg.environment), ...strMap(cfg.envs) };
+  // Continue hub block: `- uses: owner/slug` pulls a remote server definition
+  const hub = str(cfg.uses) ? `hub:${str(cfg.uses)}` : undefined;
+  const url = str(cfg.url) ?? hub ?? str(cfg.uri) ?? str(cfg.serverUrl) ?? str(cfg.httpUrl) ?? str(cfg.endpoint);
   let transport = str(cfg.type) ?? str(cfg.transport) ?? (url ? 'http' : command ? 'stdio' : 'unknown');
   if (transport === 'local') transport = 'stdio';
   if (transport === 'remote') transport = 'http';
@@ -75,10 +77,12 @@ export function extractServers(doc: unknown): Map<string, McpServer> {
   const out = new Map<string, McpServer>();
   if (!isRecord(doc)) return out;
   for (const key of SERVER_KEYS) {
-    const block = doc[key];
+    const raw = doc[key];
+    // Continue lists its servers: `mcpServers: [{ name: x, command: ... }]`
+    const block = Array.isArray(raw) ? Object.fromEntries(raw.filter(isRecord).filter((e) => typeof e.name === 'string' || typeof e.uses === 'string').map((e) => [(e.name ?? e.uses) as string, e])) : raw;
     if (!isRecord(block)) continue;
     for (const [name, cfg] of Object.entries(block)) {
-      if (isRecord(cfg) && (cfg.command !== undefined || cfg.url !== undefined || cfg.serverUrl !== undefined || cfg.httpUrl !== undefined || cfg.type !== undefined || cfg.args !== undefined || cfg.endpoint !== undefined)) {
+      if (isRecord(cfg) && (cfg.command !== undefined || cfg.cmd !== undefined || cfg.uri !== undefined || cfg.url !== undefined || cfg.uses !== undefined || cfg.serverUrl !== undefined || cfg.httpUrl !== undefined || cfg.type !== undefined || cfg.args !== undefined || cfg.endpoint !== undefined)) {
         out.set(name, normalizeServer(name, cfg));
       }
     }

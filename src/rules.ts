@@ -31,6 +31,11 @@ export const RULES: Record<string, string> = {
   'mcp-header-added': 'An HTTP header was added to a remote MCP server.',
   'mcp-header-changed': 'An HTTP header value changed (value never shown).',
   'mcp-header-removed': 'An HTTP header was removed.',
+  'codex-approval-widened': 'Codex approval_policy now asks for fewer confirmations (never = high).',
+  'codex-sandbox-widened': 'Codex sandbox_mode widened (danger-full-access = high).',
+  'codex-network-enabled': 'Codex sandbox network access was enabled.',
+  'codex-env-inherit-all': 'Codex passes every environment variable (including secrets) to commands.',
+  'codex-project-trusted': 'A project was marked trusted in the Codex config.',
   'mcp-auto-approve': 'Tools of an MCP server are auto-approved (autoApprove, alwaysAllow, trust).',
   'mcp-secret-literal': 'A literal credential is committed in an MCP config.',
   'mcp-unpinned-package': 'A package runner (npx, uvx, docker) launches an unpinned package.',
@@ -56,5 +61,5 @@ export const RULES: Record<string, string> = {
   'settings-base-url': 'ANTHROPIC_BASE_URL was overridden.',
   'allowlist-entry-added': 'A new entry in .agent-context-diff.json (it never applies to the change that adds it).',
   'allowlist-invalid': 'The allow-list .agent-context-diff.json is invalid; nothing is ignored until it is fixed.',
-  'config-unparsable': 'A tracked agent config is not valid JSON/JSONC.',
+  'config-unparsable': 'A tracked agent config is not valid JSON/JSONC/TOML/YAML (or uses an unsupported construct).',
 };

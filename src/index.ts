@@ -9,3 +9,6 @@ export { RULES } from './rules.js';
 export type { DiffResult, Finding, FileChange, Severity, Snapshot } from './types.js';
 export { ALLOWLIST_FILE, parseAllowlist, applyAllowlist } from './allowlist.js';
 export type { IgnoreEntry, Allowlist } from './allowlist.js';
+export { upsertComment, buildBody, commentEligibility, COMMENT_MARKER } from './comment.js';
+export { parseToml } from './toml.js';
+export { parseYaml } from './yamlmini.js';

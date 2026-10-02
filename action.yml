@@ -29,6 +29,12 @@ inputs:
   check-divergence:
     description: Also report AGENTS.md / CLAUDE.md pairs in one directory that differ (true or false).
     default: "false"
+  comment:
+    description: "Post the Markdown report as one sticky pull request comment, updated in place on every run (true or false). Needs pull-requests: write; skipped for forks."
+    default: "false"
+  github-token:
+    description: "Token used for the sticky comment."
+    default: ${{ github.token }}
   node-version:
     description: Node.js version used to run the tool (20 or newer).
     default: "22"
@@ -58,6 +64,8 @@ runs:
         INPUT_OUTPUT_FILE: ${{ inputs.output-file }}
         INPUT_SUMMARY: ${{ inputs.summary }}
         INPUT_DIVERGENCE: ${{ inputs.check-divergence }}
+        INPUT_COMMENT: ${{ inputs.comment }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
         cli="$ACTION_DIR/dist/src/cli.js"
         range="$INPUT_BASE...$INPUT_HEAD"
@@ -65,6 +73,13 @@ runs:
           summary_args=()
           if [ "$INPUT_DIVERGENCE" = "true" ]; then summary_args+=(--check-divergence); fi
           node "$cli" -C "$INPUT_WD" "$range" --format markdown "${summary_args[@]}" >> "$GITHUB_STEP_SUMMARY" || true
+        fi
+        if [ "$INPUT_COMMENT" = "true" ]; then
+          comment_args=()
+          if [ "$INPUT_DIVERGENCE" = "true" ]; then comment_args+=(--check-divergence); fi
+          report="${RUNNER_TEMP:-/tmp}/agent-context-diff-comment.md"
+          node "$cli" -C "$INPUT_WD" "$range" --format markdown "${comment_args[@]}" > "$report" || true
+          node "$ACTION_DIR/dist/src/comment-cli.js" "$report"
         fi
         extra=()
         if [ "$INPUT_DIVERGENCE" = "true" ]; then extra+=(--check-divergence); fi

@@ -6,6 +6,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-03
+
+### Added
+- Sticky pull request comment (issue #5): action input `comment` (+ `github-token`) and the `agent-context-diff-comment`
+  binary. One hidden-marker comment, created or updated in place; forks and non-PR events are skipped; 401/403 gives a
+  `pull-requests: write` hint; output is truncated at 60 000 characters; it never fails the job. CI self-test runs it twice
+  on same-repo PRs and asserts exactly one comment exists.
+- TOML support (issue #3): Codex `.codex/config.toml` with `[mcp_servers.*]` and the rules `codex-approval-widened`,
+  `codex-sandbox-widened`, `codex-network-enabled`, `codex-env-inherit-all`, `codex-project-trusted`.
+- YAML support (issue #4): Continue `.continue/{config,mcpServers}.yaml`, `.continue/mcpServers/*.yaml`, `.continue/agents/*.yaml`
+  (list and map forms, `uses:` hub blocks). Dependency-free parsers that reject anchors/aliases/tags/merge keys instead of misreading.
+- `mcp_servers` key and `cmd` / `envs` / `uri` aliases in MCP extraction.
+
+### Fixed
+- Multi-line TOML strings are LF-normalised for CRLF input.
+
 ## [0.2.0] - 2026-10-02
 
 ### Added

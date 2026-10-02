@@ -88,10 +88,31 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0          # both sides of the PR must be available
-      - uses: cosmichackerx/agent-context-diff@v0.2.0
+      - uses: cosmichackerx/agent-context-diff@v0.3.0
         with:
           fail-on: high           # high | medium | low | info | never
 ```
+
+### Sticky pull request comment
+
+Set `comment: true` and the report is posted as **one** comment that is updated in place on every push (no comment pile-up).
+The job needs `pull-requests: write`; fork PRs (read-only token) are skipped with a log line, never failed.
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+steps:
+  - uses: actions/checkout@v5
+    with: { fetch-depth: 0 }
+  - uses: cosmichackerx/agent-context-diff@v0.3.0
+    with:
+      comment: true        # sticky comment, identified by a hidden marker
+      fail-on: high
+```
+
+The same thing works from any CI: `agent-context-diff main..HEAD -f markdown > report.md && GITHUB_TOKEN=… agent-context-diff-comment report.md`
+(reads `GITHUB_REPOSITORY` and `GITHUB_EVENT_PATH`; it never fails the job). Comments over 60 000 characters are truncated with a notice.
 
 ### Code scanning (SARIF)
 
@@ -110,7 +131,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: cosmichackerx/agent-context-diff@v0.2.0
+      - uses: cosmichackerx/agent-context-diff@v0.3.0
         with:
           format: sarif
           output-file: agent-context.sarif
@@ -145,6 +166,35 @@ Continue `.continue/rules`, Augment `.augment/rules`, Trae `.trae/rules`, Copilo
 `context_servers` and `mcp` are normalised (stdio command + args, argv-style `command`, Zed-style command objects,
 remote `url`/`headers`).
 
+**TOML and YAML configs (since v0.3.0):** Codex `.codex/config.toml` (`[mcp_servers.*]`, plus `approval_policy`,
+`sandbox_mode`, `[shell_environment_policy]`, `[projects.*] trust_level`) and Continue
+`.continue/{config,mcpServers}.yaml`, `.continue/mcpServers/*.yaml`, `.continue/agents/*.yaml` (list or map form, including
+`uses:` hub blocks). The parsers are small, dependency-free subsets: TOML tables / arrays of tables / dotted keys / all string
+forms / inline tables, and block YAML with flow collections and `|`/`>` scalars. Anchors, aliases, tags, merge keys and
+multi-document YAML are refused with a `config-unparsable` finding instead of being misread.
+Checked against 8 public `.codex/config.toml` and 7 public Continue YAML files found by GitHub code search: all parse
+and yield the expected servers (hand-compared; this is a parse check, not a finding-accuracy study).
+
+Example (real output on a throwaway repo, `.codex/config.toml` and `.continue/config.yaml` changed):
+
+```text
+agent-context-diff  HEAD~2 → HEAD
+
+.codex/config.toml (modified)
+  HIGH   codex-approval-widened               approval_policy set to never: Codex asks for fewer confirmations
+  HIGH   codex-sandbox-widened                sandbox_mode set to danger-full-access
+  HIGH   mcp-server-added                     server 'fetcher': added (stdio `npx -y mcp-fetch-server`)
+  MEDIUM codex-env-inherit-all                shell_environment_policy.inherit = "all": every environment variable (including secrets) is passed to commands
+  MEDIUM codex-project-trusted                project marked trusted: /home/dev/app
+  MEDIUM mcp-unpinned-package                 server 'fetcher': runs 'mcp-fetch-server' without a pinned version, so upstream changes execute on your machine unreviewed
+
+.continue/config.yaml (modified)
+  HIGH   mcp-server-added                     server 'acme/db-server': added (http hub:acme/db-server)
+  HIGH   mcp-server-added                     server 'tools': added (http https://mcp.example.com/sse)
+
+8 finding(s): 5 high, 3 medium, 0 low, 0 info
+```
+
 ### Rules (selection)
 
 Run `agent-context-diff --list-rules` for the full list.
@@ -166,6 +216,8 @@ Run `agent-context-diff --list-rules` for the full list.
 | `ctx-dangerous-command` | medium / high | `curl … \| sh`, `--no-verify`, `--dangerously-skip-permissions`, `rm -rf /` … (not when the line forbids it) |
 | `ctx-html-comment` | medium | Invisible-when-rendered comment added to an instruction file |
 | `ctx-frontmatter-changed` | medium | `tools`, `allowed-tools`, `alwaysApply`, `permissionMode` changed |
+| `codex-approval-widened`, `codex-sandbox-widened` | high / medium | Codex `approval_policy = "never"`, `sandbox_mode = "danger-full-access"` |
+| `codex-network-enabled`, `codex-env-inherit-all`, `codex-project-trusted` | medium | Network access in the sandbox, all env vars passed to commands, project marked trusted |
 | `ctx-files-diverge` | low | Opt-in (`--check-divergence`): `AGENTS.md` and `CLAUDE.md` in one directory differ. `CLAUDE.md` containing `@AGENTS.md` is fine |
 
 Only **added** lines are scanned for risky content, so pre-existing text is not re-reported on every PR, and lines
@@ -295,7 +347,7 @@ capabilities, and is any of it risky?"** across all of those files, directly fro
 
 - Heuristics, not proof: expect some false positives and misses. Treat findings as review prompts. Severity is a
   judgement call; use `--fail-on` to pick your own threshold.
-- TOML configs (for example Codex `~/.codex/config.toml`) and YAML configs are not parsed yet.
+- TOML/YAML parsers are deliberate subsets (see above); exotic YAML is reported as `config-unparsable`. Goose / other YAML formats beyond Continue are not mapped yet.
 - Only repository files are analysed — user-level configs (`~/.claude.json`, `~/.cursor/mcp.json`) are out of scope.
 - Files larger than 1 MB are skipped.
 - No suppression/allow-list file yet (see roadmap).
@@ -314,7 +366,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## Roadmap
 
 See the open [roadmap issues](https://github.com/cosmichackerx/agent-context-diff/issues?q=is%3Aissue+is%3Aopen+label%3Aroadmap):
-TOML/YAML configs, PR-comment mode, npm publication, more agent tools.
+npm publication, more agent tools and formats.
 
 ## License
 
