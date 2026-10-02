@@ -23,7 +23,49 @@ function memoize(snap: Snapshot): Snapshot {
   };
 }
 
-export function diffSnapshots(rawBase: Snapshot, rawHead: Snapshot): DiffResult {
+export interface DiffOptions {
+  /** Opt-in: report AGENTS.md / CLAUDE.md pairs in the same directory whose content differs (rule `ctx-files-diverge`). */
+  checkDivergence?: boolean;
+}
+
+/** A file whose only job is to pull in another one (`@AGENTS.md`), alone or next to extra, tool-specific text. */
+export function importsFile(text: string, target: string): boolean {
+  const re = new RegExp(`^\\s*(?:[-*]\\s+)?(?:see\\s+|read\\s+)?@(?:\\./)?${target.replace('.', '\\.')}\\s*$`, 'im');
+  return re.test(text);
+}
+
+const dirOf = (p: string): string => (p.includes('/') ? p.slice(0, p.lastIndexOf('/') + 1) : '');
+
+function divergence(base: Snapshot, head: Snapshot, changed: Set<string>): Finding[] {
+  const out: Finding[] = [];
+  const present = new Set(head.listFiles());
+  for (const agents of [...present].filter((p) => p === 'AGENTS.md' || p.endsWith('/AGENTS.md')).sort()) {
+    const dir = dirOf(agents);
+    const claude = `${dir}CLAUDE.md`;
+    if (!present.has(claude)) continue;
+    if (!changed.has(agents) && !changed.has(claude)) continue;
+    const a = head.read(agents);
+    const c = head.read(claude);
+    if (a === null || c === null) continue;
+    if (importsFile(c, 'AGENTS.md') || importsFile(a, 'CLAUDE.md')) continue;
+    const lines = (t: string): Set<string> => lineSet([t]);
+    const onlyA = [...lines(a)].filter((l) => !lines(c).has(l));
+    const onlyC = [...lines(c)].filter((l) => !lines(a).has(l));
+    if (onlyA.length === 0 && onlyC.length === 0) continue;
+    const touched = [changed.has(agents) ? 'AGENTS.md' : '', changed.has(claude) ? 'CLAUDE.md' : ''].filter(Boolean);
+    out.push({
+      rule: 'ctx-files-diverge',
+      severity: 'low',
+      category: 'instructions',
+      file: claude,
+      message: `${dir || './'}AGENTS.md and CLAUDE.md differ (${onlyA.length} line(s) only in AGENTS.md, ${onlyC.length} only in CLAUDE.md); this change touched ${touched.join(' and ')}. Agents that read different files get different rules; make CLAUDE.md import it with '@AGENTS.md' or keep them in sync`,
+      side: 'head',
+    });
+  }
+  return out;
+}
+
+export function diffSnapshots(rawBase: Snapshot, rawHead: Snapshot, options: DiffOptions = {}): DiffResult {
   const base = memoize(rawBase);
   const head = memoize(rawHead);
   const paths = new Set<string>();
@@ -84,6 +126,8 @@ export function diffSnapshots(rawBase: Snapshot, rawHead: Snapshot): DiffResult 
     findings.push(...diffServers(file, extractServers(beforeValue), extractServers(pb.value)));
     if (kind === 'claude-settings') findings.push(...diffClaudeSettings(file, beforeValue, pb.value));
   }
+
+  if (options.checkDivergence) findings.push(...divergence(base, head, new Set(files.map((x) => x.file))));
 
   findings.sort(
     (x, y) =>

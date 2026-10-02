@@ -24,6 +24,7 @@ Options:
   -f, --format <fmt>     text | markdown | json | github   (default: text)
   -o, --output <file>    write the report to a file instead of stdout
       --fail-on <level>  exit 1 if a finding is at least: high | medium | low | info | never (default: never)
+      --check-divergence report AGENTS.md / CLAUDE.md pairs in one directory that differ (opt-in)
       --no-color         disable colors
       --list-rules       print all rule ids and exit
   -v, --version          print version
@@ -59,6 +60,7 @@ export function run(argv: string[], stdout: (s: string) => void = (s) => process
         output: { type: 'string', short: 'o' },
         'fail-on': { type: 'string', default: 'never' },
         'no-color': { type: 'boolean', default: false },
+        'check-divergence': { type: 'boolean', default: false },
         'list-rules': { type: 'boolean', default: false },
         version: { type: 'boolean', short: 'v', default: false },
         help: { type: 'boolean', short: 'h', default: false },
@@ -99,7 +101,7 @@ export function run(argv: string[], stdout: (s: string) => void = (s) => process
 
   try {
     const range = resolveRange({ cwd: resolve(values.cwd ?? '.'), positional: positionals, base: values.base, head: values.head });
-    const result = diffSnapshots(range.base, range.head);
+    const result = diffSnapshots(range.base, range.head, { checkDivergence: values['check-divergence'] === true });
     const color = !values['no-color'] && !values.output && Boolean(process.stdout.isTTY) && !('NO_COLOR' in process.env);
     let text: string;
     switch (format) {

@@ -39,6 +39,33 @@ test('classify recognises agent files and ignores node_modules', () => {
   assert.equal(k('docs/agents.md'), null);
 });
 
+test('classify: more tools (Aider, Amazon Q, Kiro, Continue, Augment, Copilot prompts/agents, Claude rules)', () => {
+  const k = (p: string): string | null => classify(p);
+  for (const p of [
+    'CONVENTIONS.md',
+    '.amazonq/rules/team.md',
+    '.kiro/steering/product.md',
+    '.continue/rules/style.md',
+    '.augment/rules/security.md',
+    '.trae/rules/project_rules.md',
+    '.github/prompts/review.prompt.md',
+    '.github/agents/reviewer.agent.md',
+    '.github/chatmodes/plan.chatmode.md',
+    '.cursor/commands/ship.md',
+    '.clinerules/notes.txt',
+    '.claude/rules/testing.md',
+  ]) {
+    assert.equal(k(p), 'instructions', p);
+  }
+  for (const p of ['.amazonq/mcp.json', '.amazonq/default.json', '.amazonq/cli-agents/dev.json', '.continue/mcpServers/github.json']) {
+    assert.equal(k(p), 'mcp-config', p);
+  }
+  // only the repository-root CONVENTIONS.md is an Aider file; random docs are not
+  assert.equal(k('docs/CONVENTIONS.md'), null);
+  assert.equal(k('.kiro/steering/notes.txt'), null);
+  assert.equal(k('.github/prompts/readme.md'), null);
+});
+
 test('secrets: placeholders vs literals', () => {
   assert.ok(isPlaceholder('${GITHUB_TOKEN}'));
   assert.ok(isPlaceholder('$TOKEN'));
