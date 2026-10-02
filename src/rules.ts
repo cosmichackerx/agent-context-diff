@@ -54,5 +54,7 @@ export const RULES: Record<string, string> = {
   'settings-env-removed': 'A session environment variable was removed.',
   'settings-secret-literal': 'A literal credential is committed in agent settings.',
   'settings-base-url': 'ANTHROPIC_BASE_URL was overridden.',
+  'allowlist-entry-added': 'A new entry in .agent-context-diff.json (it never applies to the change that adds it).',
+  'allowlist-invalid': 'The allow-list .agent-context-diff.json is invalid; nothing is ignored until it is fixed.',
   'config-unparsable': 'A tracked agent config is not valid JSON/JSONC.',
 };

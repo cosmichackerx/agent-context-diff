@@ -1,6 +1,6 @@
 {
   "name": "agent-context-diff",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Diff AGENTS.md, CLAUDE.md, Cursor rules and MCP server configs between git refs and flag risky changes: new MCP servers, widened permissions, removed guardrails, hidden Unicode.",
   "keywords": [
     "agents-md",
