@@ -18,6 +18,18 @@ function summaryLine(findings: Finding[]): string {
   return `${findings.length} finding(s): ${c.high} high, ${c.medium} medium, ${c.low} low, ${c.info} info`;
 }
 
+function allowlistNotes(r: DiffResult): string[] {
+  const out: string[] = [];
+  const a = r.allowlist;
+  if (r.ignored && r.ignored.length > 0) {
+    out.push(`${r.ignored.length} finding(s) accepted by the allow-list (${a?.source === 'file' ? 'from --allowlist' : 'read from the base ref'}):`);
+    for (const i of r.ignored) out.push(`  - ${i.finding.rule} in ${i.finding.file}: ${i.reason}`);
+  }
+  if (a?.expired && a.expired.length > 0) out.push(`${a.expired.length} allow-list entr${a.expired.length === 1 ? 'y' : 'ies'} expired and no longer apply: ${a.expired.join(' | ')}`);
+  if (a?.unused && a.unused.length > 0) out.push(`${a.unused.length} allow-list entr${a.unused.length === 1 ? 'y matches' : 'ies match'} nothing in this change (remove if stale): ${a.unused.join(' | ')}`);
+  return out;
+}
+
 export function renderText(r: DiffResult, color: boolean): string {
   const out: string[] = [];
   const paint = (s: string, code: string): string => (color ? `${code}${s}${RESET}` : s);
@@ -39,6 +51,7 @@ export function renderText(r: DiffResult, color: boolean): string {
     out.push('');
   }
   out.push(summaryLine(r.findings));
+  out.push(...allowlistNotes(r));
   return out.join('\n');
 }
 
@@ -70,6 +83,14 @@ export function renderMarkdown(r: DiffResult): string {
     }
     out.push('');
   }
+  const notes = allowlistNotes(r);
+  if (notes.length > 0) {
+    out.push('<details><summary>Allow-list</summary>');
+    out.push('');
+    for (const n of notes) out.push(n.startsWith('  - ') ? `  ${n.trim().replace(/^- /, '- ')}` : `${n}  `);
+    out.push('');
+    out.push('</details>');
+  }
   return out.join('\n');
 }
 
@@ -82,6 +103,8 @@ export function renderJson(r: DiffResult): string {
       summary: countBySeverity(r.findings),
       files: r.files,
       findings: r.findings,
+      ignored: (r.ignored ?? []).map((i) => ({ ...i.finding, ignoredBy: i.entry, reason: i.reason })),
+      allowlist: r.allowlist ?? { source: 'none', unused: [], expired: [] },
     },
     null,
     2,
@@ -125,9 +148,10 @@ const SARIF_SECURITY_SEVERITY: Record<Severity, string> = { high: '8.0', medium:
  * file without a region, because a base line number would point at the wrong place in the head file.
  */
 export function renderSarif(r: DiffResult, toolVersion: string): string {
-  const usedRules = [...new Set(r.findings.map((f) => f.rule))].sort();
+  const all = [...r.findings, ...(r.ignored ?? []).map((i) => i.finding)];
+  const usedRules = [...new Set(all.map((f) => f.rule))].sort();
   const worst = (rule: string): Severity =>
-    r.findings.filter((f) => f.rule === rule).reduce<Severity>((m, f) => (SEVERITY_RANK[f.severity] > SEVERITY_RANK[m] ? f.severity : m), 'info');
+    all.filter((f) => f.rule === rule).reduce<Severity>((m, f) => (SEVERITY_RANK[f.severity] > SEVERITY_RANK[m] ? f.severity : m), 'info');
   const allRules = [...new Set([...Object.keys(RULES), ...usedRules])].sort();
   const rules = allRules.map((id) => {
     const sev = worst(id);
@@ -141,7 +165,7 @@ export function renderSarif(r: DiffResult, toolVersion: string): string {
     };
   });
   const ruleIndex = new Map(allRules.map((id, i) => [id, i]));
-  const results = r.findings.map((f) => {
+  const toResult = (f: Finding, suppression?: { reason: string; entry: string }): Record<string, unknown> => {
     const physicalLocation: Record<string, unknown> = { artifactLocation: { uri: f.file, uriBaseId: '%SRCROOT%' } };
     if (f.line && f.side !== 'base') physicalLocation.region = { startLine: f.line };
     const where = f.side === 'base' ? ' (from the base version of the file)' : '';
@@ -153,8 +177,10 @@ export function renderSarif(r: DiffResult, toolVersion: string): string {
       locations: [{ physicalLocation }],
       partialFingerprints: { 'agentContextDiff/v1': createHash('sha256').update(`${f.rule}\n${f.file}\n${f.message}`).digest('hex').slice(0, 32) },
       properties: { severity: f.severity, category: f.category, side: f.side ?? 'head' },
+      ...(suppression ? { suppressions: [{ kind: 'external', status: 'accepted', justification: `${suppression.reason} [${suppression.entry}]` }] } : {}),
     };
-  });
+  };
+  const results = [...r.findings.map((f) => toResult(f)), ...(r.ignored ?? []).map((i) => toResult(i.finding, { reason: i.reason, entry: i.entry }))];
   return JSON.stringify(
     {
       $schema: 'https://json.schemastore.org/sarif-2.1.0.json',

@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-02
+
+### Added
+- Allow-list `.agent-context-diff.json` (issue #1): `ignore` entries with `rule` (glob), `file` (glob), `server`, `contains`,
+  mandatory `reason` and optional `expires`. It is read from the **base** ref, so a change cannot silence its own findings.
+  Entries added by a change are reported as `allowlist-entry-added`; an invalid allow-list is reported as `allowlist-invalid`
+  and ignores nothing. Ignored findings are listed (text, Markdown, JSON `ignored`) and exported to SARIF as `suppressions`;
+  stale and expired entries are listed.
+- `--allowlist <file>` (trusted file outside the change) and `--no-allowlist`.
+
 ### Changed
 - `action.yml` description shortened to the 125 characters GitHub Marketplace allows; a test now checks the name, description length, branding icon/color and composite `runs`.
 

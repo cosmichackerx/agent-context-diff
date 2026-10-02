@@ -26,7 +26,7 @@ export interface FileChange {
   kind: FileKind;
 }
 
-export type FileKind = 'instructions' | 'mcp-config' | 'claude-settings';
+export type FileKind = 'instructions' | 'mcp-config' | 'claude-settings' | 'allowlist';
 
 /** A read-only view of the files of a git ref (or of the working tree). */
 export interface Snapshot {
@@ -36,9 +36,29 @@ export interface Snapshot {
   read(path: string): string | null;
 }
 
+/** A finding accepted by an allow-list entry. It does not count towards `--fail-on`. */
+export interface IgnoredFinding {
+  finding: Finding;
+  reason: string;
+  /** Human readable form of the matching entry. */
+  entry: string;
+}
+
+export interface AllowlistInfo {
+  /** `base`: read from the base ref (default). `file`: given with --allowlist. `none`. */
+  source: 'base' | 'file' | 'none';
+  /** Entries that matched nothing: candidates for removal. */
+  unused: string[];
+  expired: string[];
+  /** Why an existing allow-list could not be used. */
+  error?: string;
+}
+
 export interface DiffResult {
   base: string;
   head: string;
   files: FileChange[];
   findings: Finding[];
+  ignored?: IgnoredFinding[];
+  allowlist?: AllowlistInfo;
 }

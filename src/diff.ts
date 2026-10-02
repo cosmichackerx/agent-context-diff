@@ -3,6 +3,7 @@ import { diffInstructionFile, lineSet, type DiffContext } from './instructions.j
 import { diffClaudeSettings } from './claude.js';
 import { parseJsonc } from './jsonc.js';
 import { diffServers, extractServers } from './mcp.js';
+import { ALLOWLIST_FILE, allowlistChangeFindings, applyAllowlist, loadFromBase, parseAllowlist } from './allowlist.js';
 import { SEVERITY_RANK, type DiffResult, type FileChange, type Finding, type Snapshot } from './types.js';
 
 function parseConfig(text: string | null): { ok: true; value: unknown } | { ok: false; error: string } {
@@ -26,6 +27,13 @@ function memoize(snap: Snapshot): Snapshot {
 export interface DiffOptions {
   /** Opt-in: report AGENTS.md / CLAUDE.md pairs in the same directory whose content differs (rule `ctx-files-diverge`). */
   checkDivergence?: boolean;
+  /**
+   * Allow-list of accepted findings. `'base'` (default) reads `.agent-context-diff.json` from the BASE snapshot, so a change
+   * cannot silence its own findings; `{ text }` uses trusted text supplied by the caller (`--allowlist`); `false` disables it.
+   */
+  allowlist?: 'base' | { text: string } | false;
+  /** Clock for `expires` (tests). */
+  now?: Date;
 }
 
 /** A file whose only job is to pull in another one (`@AGENTS.md`), alone or next to extra, tool-specific text. */
@@ -129,14 +137,52 @@ export function diffSnapshots(rawBase: Snapshot, rawHead: Snapshot, options: Dif
 
   if (options.checkDivergence) findings.push(...divergence(base, head, new Set(files.map((x) => x.file))));
 
-  findings.sort(
+  let kept = findings;
+  let ignored: DiffResult['ignored'];
+  let allowlistInfo: DiffResult['allowlist'];
+  const mode = options.allowlist ?? 'base';
+  if (mode !== false) {
+    let list;
+    let source: 'base' | 'file' | 'none' = 'none';
+    let error: string | undefined;
+    if (mode === 'base') {
+      const loaded = loadFromBase(base);
+      list = loaded.list;
+      error = loaded.error;
+      if (list) source = 'base';
+    } else {
+      const p = parseAllowlist(mode.text);
+      if (p.ok) {
+        list = p.allowlist;
+        source = 'file';
+      } else error = `the --allowlist file is invalid (${p.error}); no findings were ignored`;
+    }
+    const outcome = applyAllowlist(findings, list, source, options.now ?? new Date());
+    kept = outcome.findings;
+    ignored = outcome.ignored;
+    allowlistInfo = { source, unused: outcome.unused, expired: outcome.expired, ...(error ? { error } : {}) };
+    if (mode === 'base') {
+      const changes = allowlistChangeFindings(base, head);
+      if (changes.length > 0) {
+        kept = [...kept, ...changes];
+        const b = base.read(ALLOWLIST_FILE);
+        files.push({ file: ALLOWLIST_FILE, kind: 'allowlist', status: b === null ? 'added' : 'modified' });
+      }
+    }
+    if (error) {
+      kept = [...kept, { rule: 'allowlist-invalid', severity: 'medium', category: 'config', file: ALLOWLIST_FILE, message: error, side: 'base' }];
+      if (!files.some((x) => x.file === ALLOWLIST_FILE)) files.push({ file: ALLOWLIST_FILE, kind: 'allowlist', status: 'modified' });
+    }
+  }
+
+  kept.sort(
     (x, y) =>
       x.file.localeCompare(y.file) ||
       SEVERITY_RANK[y.severity] - SEVERITY_RANK[x.severity] ||
       (x.line ?? 0) - (y.line ?? 0) ||
       x.rule.localeCompare(y.rule),
   );
-  return { base: base.label, head: head.label, files, findings };
+  return { base: base.label, head: head.label, files, findings: kept, ...(ignored ? { ignored } : {}), ...(allowlistInfo ? { allowlist: allowlistInfo } : {}) };
 }
 
 export function highestSeverity(findings: Finding[]): number {

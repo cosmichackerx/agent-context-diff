@@ -7,3 +7,5 @@ export { diffClaudeSettings } from './claude.js';
 export { classify } from './discover.js';
 export { RULES } from './rules.js';
 export type { DiffResult, Finding, FileChange, Severity, Snapshot } from './types.js';
+export { ALLOWLIST_FILE, parseAllowlist, applyAllowlist } from './allowlist.js';
+export type { IgnoreEntry, Allowlist } from './allowlist.js';

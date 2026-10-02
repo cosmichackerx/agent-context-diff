@@ -88,7 +88,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0          # both sides of the PR must be available
-      - uses: cosmichackerx/agent-context-diff@v0.1.1
+      - uses: cosmichackerx/agent-context-diff@v0.2.0
         with:
           fail-on: high           # high | medium | low | info | never
 ```
@@ -110,7 +110,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: cosmichackerx/agent-context-diff@v0.1.1
+      - uses: cosmichackerx/agent-context-diff@v0.2.0
         with:
           format: sarif
           output-file: agent-context.sarif
@@ -190,8 +190,56 @@ reported on purpose, and what you can do about it today:
 | `ctx-dangerous-command` for `curl … \| sh` (medium) | An installer one-liner was added to instructions an agent will follow. `http://`, `sudo`, or a raw-IP URL makes it `high`. Lines that *forbid* a command ("never use `--no-verify`"), type unions that list `bypassPermissions`, and `--force-with-lease` are not flagged. | Replace the one-liner with a pinned package-manager install if you can. |
 | `ctx-html-comment` (medium) | Comments are invisible in rendered Markdown but read by agents. Comments inside code fences and bare tool markers (`<!-- BEGIN:x -->`, `<!-- prettier-ignore-start -->`) are ignored. | Move the text out of the comment, or review it. |
 
-An allow-list/baseline file for acknowledging individual findings is on the [roadmap](#roadmap); until then
-`--fail-on` is the supported way to set a threshold per repository.
+## Accepting known findings: the allow-list
+
+Some findings are real but already reviewed (the documentation MCP server your team approved). Put them in
+`.agent-context-diff.json` at the repository root:
+
+```json
+{
+  "ignore": [
+    { "rule": "mcp-server-added", "server": "github", "reason": "approved in SEC-123 (pinned, read-only token)" },
+    { "rule": "perm-allow-added", "file": ".claude/settings.json", "contains": "Bash(make test", "reason": "dev loop",
+      "expires": "2027-03-31" }
+  ]
+}
+```
+
+| Key | Meaning |
+|---|---|
+| `rule` | Rule id or glob (`mcp-*`). Required. A wildcard rule must also have `file`, `server` or `contains`. |
+| `file` | Path glob (`*` inside a directory, `**` across). Default: any file. |
+| `server` | MCP server name (or glob) the finding is about. |
+| `contains` | Case-insensitive text that must appear in the finding message. |
+| `reason` | **Required.** Shown in every report so the exception stays visible. |
+| `expires` | `YYYY-MM-DD`. After that day the entry stops applying and is listed as expired. |
+
+**A change cannot silence its own findings.** The file is read from the **base** ref (the target branch of the pull
+request), never from the head. Entries a pull request adds do not apply to it; they are reported as
+`allowlist-entry-added` (high for wildcard or unrestricted entries, medium otherwise) so a reviewer sees the new
+exception, and they start working once the change is merged. An invalid allow-list on the base ref ignores nothing and
+is reported as `allowlist-invalid`. Unknown keys, a missing `reason` and a bare `"rule": "*"` are rejected.
+
+Ignored findings do not count towards `--fail-on`. They are listed in text/Markdown output, in the JSON `ignored` array,
+and in SARIF as results with `suppressions` (kind `external`, with your reason), so code scanning shows them as accepted.
+Entries that match nothing are listed as stale. Real output (the pull request adds the approved `github` server and an
+unapproved `files` server; the allow-list on `main` approves only `github`):
+
+```text
+$ agent-context-diff main...HEAD --fail-on high
+agent-context-diff  main (merge-base 8d0ae97) → HEAD
+
+.mcp.json (modified)
+  HIGH   mcp-server-added                     server 'files': added (stdio `npx -y @modelcontextprotocol/server-filesystem@1.0.0 /tmp`)
+
+1 finding(s): 1 high, 0 medium, 0 low, 0 info
+1 finding(s) accepted by the allow-list (read from the base ref):
+  - mcp-server-added in .mcp.json: approved in SEC-123 (pinned, read-only token)
+```
+
+Use `--no-allowlist` to see everything, or `--allowlist <file>` to apply a trusted file kept outside the change under
+review (for example an organisation-wide policy checked out separately). Do not point `--allowlist` at a file inside a
+pull request checkout: that file is controlled by the change.
 
 ## Measured on real repositories
 
@@ -266,7 +314,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## Roadmap
 
 See the open [roadmap issues](https://github.com/cosmichackerx/agent-context-diff/issues?q=is%3Aissue+is%3Aopen+label%3Aroadmap):
-allow-list/baseline file, TOML/YAML configs, PR-comment mode, npm publication, more agent tools.
+TOML/YAML configs, PR-comment mode, npm publication, more agent tools.
 
 ## License
 
