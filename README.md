@@ -1,5 +1,9 @@
 # agent-context-diff
 
+[![CI](https://github.com/cosmichackerx/agent-context-diff/actions/workflows/ci.yml/badge.svg)](https://github.com/cosmichackerx/agent-context-diff/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/cosmichackerx/agent-context-diff?sort=semver)](https://github.com/cosmichackerx/agent-context-diff/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **Diff `AGENTS.md`, `CLAUDE.md`, Cursor rules and MCP server configs between git refs — and flag the changes that matter for security review.**
 
 `agent-context-diff` is a zero-dependency TypeScript CLI and GitHub Action for teams that let AI coding agents
