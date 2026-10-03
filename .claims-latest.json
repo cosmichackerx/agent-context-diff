@@ -1,0 +1,5 @@
+{
+  "claims": [
+    {"id": "action pins in the README equal the newest release", "file": "README.md", "regex": "agent-context-diff@v([0-9.]+)", "expect": {"latest_tag": "https://github.com/cosmichackerx/agent-context-diff"}}
+  ]
+}

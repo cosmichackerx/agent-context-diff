@@ -14,3 +14,4 @@ npm test        # builds, then runs node:test over dist/test
 - Prefer low false-positive rates: this tool is meant to be run on every pull request.
 
 Good first issues are labelled `good first issue`.
+* Releasing: bump the version and the README pins in a PR, merge when green, then run **Actions > Release gate** with the new tag (for example `v1.2.3`) *before* you create the tag. The same check runs again on the tag, and a weekly job (`claims-latest.yml`) fails when the README pins an older release than the newest tag.
