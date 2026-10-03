@@ -1,5 +1,9 @@
 # agent-context-diff
 
+[![CI](https://github.com/cosmichackerx/agent-context-diff/actions/workflows/ci.yml/badge.svg)](https://github.com/cosmichackerx/agent-context-diff/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/cosmichackerx/agent-context-diff?sort=semver)](https://github.com/cosmichackerx/agent-context-diff/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **Diff `AGENTS.md`, `CLAUDE.md`, Cursor rules and MCP server configs between git refs — and flag the changes that matter for security review.**
 
 `agent-context-diff` is a zero-dependency TypeScript CLI and GitHub Action for teams that let AI coding agents
@@ -367,6 +371,24 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 See the open [roadmap issues](https://github.com/cosmichackerx/agent-context-diff/issues?q=is%3Aissue+is%3Aopen+label%3Aroadmap):
 npm publication, more agent tools and formats.
+
+## Related tools
+
+Small, independent tools by the same author, for build and CI hygiene and for migrations with a deadline. Each works on its own; none requires another.
+
+**Gradle and Android migrations**
+
+* [gradle-version-catalog-lint](https://github.com/cosmichackerx/gradle-version-catalog-lint): Lints `libs.versions.toml`: unused libraries, plugins and versions, dynamic or SNAPSHOT versions, hard-coded dependencies.
+* [gradle10-ready](https://github.com/cosmichackerx/gradle10-ready): Static scan of Gradle build scripts for what Gradle 10 removes (space assignment, multi-string dependencies, Kotlin DSL delegates). `--fix`, PR mode.
+* [agp9-ready](https://github.com/cosmichackerx/agp9-ready): Static scan of Gradle files for what Android Gradle Plugin 9 and 10 break (built-in Kotlin, legacy variant API, opt-outs), including `buildSrc`. `--fix`, PR mode.
+* [android-target-ready](https://github.com/cosmichackerx/android-target-ready): Static scanner for the targetSdk 36 / 37 migration in app code and manifests (edge-to-edge, predictive back, large screens).
+* [android-target-lint](https://github.com/cosmichackerx/android-target-lint): The same targetSdk migration checks as real Android Lint rules (a lint jar with type resolution).
+
+**CI and repository hygiene**
+
+* [node24-ready](https://github.com/cosmichackerx/node24-ready): Finds GitHub Actions still on the removed Node 20 runtime, also inside composite actions and reusable workflows, and the smallest node24 upgrade.
+* [dependabot-gaps](https://github.com/cosmichackerx/dependabot-gaps): Finds manifests your `dependabot.yml` does not cover, and dead or overlapping entries.
+* [sha256-ready](https://github.com/cosmichackerx/sha256-ready): Finds code that assumes 40-character Git hashes before Git 3.0 makes SHA-256 repositories the default.
 
 ## License
 
