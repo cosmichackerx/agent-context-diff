@@ -392,6 +392,7 @@ Small, independent tools by the same author, for build and CI hygiene and for mi
 * [sha256-ready](https://github.com/cosmichackerx/sha256-ready): Finds code that assumes 40-character Git hashes before Git 3.0 makes SHA-256 repositories the default.
 * [helm4-ready](https://github.com/cosmichackerx/helm4-ready): Finds the Helm 3 CLI usage (removed and deprecated flags, executable post-renderers, `registry login` URLs, Helm 3 pins) that Helm 4 rejects in CI workflows, scripts and Makefiles, checked against real Helm 3.22.0 and 4.3.0.
 * [kafka4-ready](https://github.com/cosmichackerx/kafka4-ready): Finds Kafka 3 settings and CLI usage that Kafka 4 rejects or silently ignores (ZooKeeper-mode broker files, removed `zookeeper.*` and `log.message.format.version` settings, `--zookeeper` options, space-separated `--bootstrap-server`), checked against a real Kafka 4 broker and tools.
+* [pandas3-ready](https://github.com/cosmichackerx/pandas3-ready): Static scan of Python files and notebooks for code that breaks or changes meaning on pandas 3 (removed APIs and aliases, chained assignment, read-only arrays, string dtype), checked against pandas 2.3.3 and 3.0.x.
 
 ## License
 
