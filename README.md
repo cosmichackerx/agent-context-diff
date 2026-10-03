@@ -390,6 +390,7 @@ Small, independent tools by the same author, for build and CI hygiene and for mi
 * [node24-ready](https://github.com/cosmichackerx/node24-ready): Finds GitHub Actions still on the removed Node 20 runtime, also inside composite actions and reusable workflows, and the smallest node24 upgrade.
 * [dependabot-gaps](https://github.com/cosmichackerx/dependabot-gaps): Finds manifests your `dependabot.yml` does not cover, and dead or overlapping entries.
 * [sha256-ready](https://github.com/cosmichackerx/sha256-ready): Finds code that assumes 40-character Git hashes before Git 3.0 makes SHA-256 repositories the default.
+* [helm4-ready](https://github.com/cosmichackerx/helm4-ready): Finds the Helm 3 CLI usage (removed and deprecated flags, executable post-renderers, `registry login` URLs, Helm 3 pins) that Helm 4 rejects in CI workflows, scripts and Makefiles, checked against real Helm 3.22.0 and 4.3.0.
 
 ## License
 
